@@ -5,9 +5,16 @@
   "private": true,
   "scripts": {
     "build": "node build.js",
-    "version": "node scripts/sync-manifest-version.js"
+    "version": "node scripts/sync-manifest-version.js",
+    "test": "jest"
   },
   "devDependencies": {
-    "archiver": "^5.3.1"
+    "@babel/core": "^7.24.7",
+    "@babel/preset-env": "^7.24.7",
+    "archiver": "^5.3.1",
+    "babel-jest": "^29.7.0",
+    "jest": "^29.7.0",
+    "jest-environment-jsdom": "^29.7.0",
+    "jest-webextension-mock": "^3.8.1"
   }
 }
