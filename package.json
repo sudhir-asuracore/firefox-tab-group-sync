@@ -4,7 +4,8 @@
   "description": "A Firefox extension to sync tab groups across devices.",
   "private": true,
   "scripts": {
-    "build": "node build.js"
+    "build": "node build.js",
+    "version": "node scripts/sync-manifest-version.js"
   },
   "devDependencies": {
     "archiver": "^5.3.1"

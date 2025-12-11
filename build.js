@@ -5,7 +5,8 @@ const archiver = require('archiver');
 console.log("Starting the packaging process...");
 
 // Define the name of the output ZIP file
-const output = fs.createWriteStream(__dirname + '/tab-group-sync.zip');
+const outputZipName = 'tab-group-sync.zip';
+const output = fs.createWriteStream(__dirname + '/' + outputZipName);
 const archive = archiver('zip', {
   zlib: { level: 9 } // Set the compression level
 });
@@ -13,7 +14,7 @@ const archive = archiver('zip', {
 // --- Listen for events ---
 output.on('close', function() {
   console.log(`Package created successfully: ${archive.pointer()} total bytes`);
-  console.log('firefox-group-sync.zip is ready for submission.');
+  console.log(`${outputZipName} is ready for submission.`);
 });
 
 archive.on('warning', function(err) {
