@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Tab Group Syncer",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Syncs firefox tab groups across devices. Requires 'extensions.tabGroups.enabled' to be activated in about:config. Will maintain it for myself until official groups sync is supported by Firefox.",
   "author": "Sudhir Babu Nakka",
   "icons": {
