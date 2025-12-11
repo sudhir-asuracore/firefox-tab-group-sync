@@ -1,0 +1,12 @@
+{
+  "name": "firefox-group-sync",
+  "version": "1.0.0",
+  "description": "A Firefox extension to sync tab groups across devices.",
+  "private": true,
+  "scripts": {
+    "build": "node build.js"
+  },
+  "devDependencies": {
+    "archiver": "^5.3.1"
+  }
+}
