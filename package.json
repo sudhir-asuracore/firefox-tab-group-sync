@@ -1,6 +1,6 @@
 {
   "name": "tab-group-syncer",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "A Firefox extension to sync tab groups across devices.",
   "private": true,
   "license": "MIT",
