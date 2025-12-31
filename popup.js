@@ -1,4 +1,4 @@
-// popup.js
+import { createGroupCard } from './utils.js';
 
 document.addEventListener('DOMContentLoaded', () => {
   const listContainer = document.getElementById('group-list');
@@ -43,7 +43,7 @@ document.addEventListener('DOMContentLoaded', () => {
       deviceLabel.textContent = `ID: ${currentDeviceId}`;
 
       const allData = await browser.storage.sync.get(null);
-      const remoteKeys = Object.keys(allData).filter(k => 
+      const remoteKeys = Object.keys(allData).filter(k =>
         k.startsWith("state_") && k !== `state_${currentDeviceId}`
       );
 
@@ -82,7 +82,7 @@ document.addEventListener('DOMContentLoaded', () => {
         listContainer.textContent = '';
         statusMsg.textContent = ''; // Clear status message
         const snapshot = allData[snapshotKey];
-        
+
         if (!snapshot || !snapshot.groups) {
           listContainer.textContent = 'No groups found in this snapshot.';
           syncBtn.style.display = 'none';

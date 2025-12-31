@@ -39,6 +39,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Run tests
+        run: npm test
+
       - name: Configure Git identity
         run: |
           git config user.name "github-actions[bot]"
@@ -46,6 +49,7 @@ jobs:
 
       - name: Bump version (npm version)
         id: bump
+        shell: bash
         run: |
           npm version ${{ inputs.release_type }} -m "chore(release): v%s"
 
@@ -65,6 +69,7 @@ jobs:
           path: tab-group-sync.zip
 
       - name: Push commit and tag
+        shell: bash
         run: |
           git push --follow-tags
 

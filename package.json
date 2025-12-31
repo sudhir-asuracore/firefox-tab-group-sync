@@ -1,8 +1,24 @@
 {
-  "name": "firefox-group-sync",
+  "name": "tab-group-syncer",
   "version": "1.1.0",
   "description": "A Firefox extension to sync tab groups across devices.",
   "private": true,
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sudhir-asuracore/firefox-tab-group-sync.git"
+  },
+  "bugs": {
+    "url": "https://github.com/sudhir-asuracore/firefox-tab-group-sync/issues"
+  },
+  "homepage": "https://github.com/sudhir-asuracore/firefox-tab-group-sync#readme",
+  "keywords": [
+    "firefox",
+    "webextension",
+    "tab groups",
+    "sync",
+    "tabs"
+  ],
   "scripts": {
     "build": "node build.js",
     "version": "node scripts/sync-manifest-version.js",

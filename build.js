@@ -37,6 +37,8 @@ archive.pipe(output);
 const filesToInclude = [
   'manifest.json',
   'background.js',
+  'background.logic.js',
+  'utils.js',
   'popup.html',
   'popup.js',
   'README.md',
