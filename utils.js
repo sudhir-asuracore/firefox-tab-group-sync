@@ -21,8 +21,12 @@ export function createGroupCard(remoteGroup, localGroups, localTabs) {
   if (localGroup) {
     const localGroupTabs = localTabs.filter(t => t.groupId === localGroup.id);
     const localUrls = new Set(localGroupTabs.map(t => normalizeUrl(t.url)));
-    const remoteUrls = new Set(remoteGroup.tabs.map(t => normalizeUrl(t.url)));
-    isSynced = remoteGroup.tabs.length > 0 && [...remoteUrls].every(url => localUrls.has(url));
+    // Remote snapshot may store tabs as an array of strings (URLs) or objects with a `url` field.
+    const remoteUrls = new Set(
+      (remoteGroup.tabs || []).map(t => normalizeUrl(typeof t === 'string' ? t : t.url))
+    );
+    // Consider synced when every remote URL exists locally and the remote group isn't empty.
+    isSynced = remoteUrls.size > 0 && [...remoteUrls].every(url => localUrls.has(url));
   }
 
   const colorDot = document.createElement('span');
