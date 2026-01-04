@@ -1,5 +1,7 @@
 # Tab Group Syncer (Firefox)
 
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/U7U61FUIAB)
+
 A simple Firefox extension to sync your tab groups across different devices using Mozilla's built-in sync storage.
 [Firefox Plugin Store Link](https://addons.mozilla.org/en-US/firefox/addon/tab-group-syncer/)
 

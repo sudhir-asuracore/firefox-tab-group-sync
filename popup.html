@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
+  <meta charset="UTF-8">
   <style>
     body { width: 350px; font-family: sans-serif; padding: 10px; background-color: #f9f9fb; }
 
@@ -56,9 +57,22 @@
 
     .status { margin-top: 8px; font-size: 12px; text-align: center; color: #555; }
 
-    .footer { margin-top: 8px; font-size: 11px; font-style: italic; color: #666; text-align: right; }
-    .footer a { color: inherit; text-decoration: none; }
-    .footer a:hover { text-decoration: underline; }
+    .footer {
+      margin-top: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .footer .right { font-size: 11px; font-style: italic; color: #666; }
+    .footer .right a { color: inherit; text-decoration: none; }
+    .footer .right a:hover { text-decoration: underline; }
+
+    /* Ko-fi button (image-based) */
+    .kofi-button {
+      display: inline-block;
+      text-decoration: none;
+      line-height: 0; /* remove extra gap around image */
+    }
 
   </style>
 </head>
@@ -80,7 +94,14 @@
   <div id="status-msg" class="status"></div>
 
   <div class="footer">
-    <a id="source-link" href="https://github.com/sudhir-asuracore/firefox-tab-group-sync" target="_blank" rel="noopener noreferrer">Source/Report Issue</a>
+    <!-- Ko-fi donate button (image-based, MV3-friendly) aligned left -->
+    <a id="kofi-link" class="kofi-button" href="https://ko-fi.com/U7U61FUIAB" target="_blank" rel="noopener noreferrer" title="Support me on Ko-fi">
+      <img height='36' style='border:0px;height:36px;' src='https://storage.ko-fi.com/cdn/kofi2.png?v=6' border='0' alt='Buy Me a Coffee at ko-fi.com' />
+    </a>
+    <!-- Source/Report Issue aligned right -->
+    <div class="right">
+      <a id="source-link" href="https://github.com/sudhir-asuracore/firefox-tab-group-sync" target="_blank" rel="noopener noreferrer">Source/Report Issue</a>
+    </div>
   </div>
 
   <script src="popup.js" type="module"></script>

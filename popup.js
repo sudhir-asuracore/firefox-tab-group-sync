@@ -9,12 +9,24 @@ document.addEventListener('DOMContentLoaded', () => {
   const deviceNameInput = document.getElementById('device-name-input');
   const saveDeviceNameBtn = document.getElementById('save-device-name');
   const sourceLink = document.getElementById('source-link');
+  const kofiLink = document.getElementById('kofi-link');
 
   // Open GitHub repo in a new tab when the footer link is clicked
   if (sourceLink) {
     sourceLink.addEventListener('click', (e) => {
       e.preventDefault();
       const url = sourceLink.getAttribute('href');
+      if (url) {
+        browser.tabs.create({ url });
+      }
+    });
+  }
+
+  // Open Ko-fi link in a new tab when the donate button is clicked
+  if (kofiLink) {
+    kofiLink.addEventListener('click', (e) => {
+      e.preventDefault();
+      const url = kofiLink.getAttribute('href');
       if (url) {
         browser.tabs.create({ url });
       }
