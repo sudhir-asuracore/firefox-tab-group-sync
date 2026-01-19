@@ -22,7 +22,7 @@ describe('normalizeUrl', () => {
   });
 
   test('should handle invalid URLs', () => {
-    expect(normalizeUrl('not a url')).toBe('not a url');
+    expect(normalizeUrl('not a url')).toBeNull();
   });
 });
 
