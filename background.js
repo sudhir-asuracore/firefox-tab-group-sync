@@ -28,12 +28,22 @@ function normalizeUrl(url) {
   }
 }
 
+function isValidUrl(url) {
+  try {
+    const u = new URL(url);
+    // Only allow http/https protocols for security
+    return ['http:', 'https:'].includes(u.protocol);
+  } catch (e) {
+    return false;
+  }
+}
+
 // --- SECTION 2: CORE LOGIC (SAVE) ---
 
 async function saveStateToCloud() {
   try {
     const deviceInfo = await getDeviceInfo();
-    
+
     if (!browser.tabGroups) {
       console.warn("Tab Groups API is not enabled. Please check about:config.");
       return;
@@ -44,11 +54,11 @@ async function saveStateToCloud() {
 
     for (const group of groups) {
       const tabs = await browser.tabs.query({ groupId: group.id });
-      
+
       payload.push({
         title: group.title || "Untitled Group",
         color: group.color || "grey",
-        tabs: tabs.map(t => t.url) 
+        tabs: tabs.map(t => t.url)
       });
     }
 
@@ -90,17 +100,25 @@ async function syncGroupsFromRemote(groupsToSync) {
         continue; // Don't create empty groups.
       }
 
+      // Valid tabs only
+      const validTabs = remoteGroup.tabs.filter(isValidUrl);
+
+      if (validTabs.length === 0) {
+        console.log(`[Sync] Skipping group with no valid tabs: "${remoteGroup.title}"`);
+        continue;
+      }
+
       console.log(`[Sync] Creating new group: "${remoteGroup.title}"`);
-      
+
       // Create the first tab to anchor the new group.
-      const firstTab = await browser.tabs.create({ url: remoteGroup.tabs[0], active: false });
+      const firstTab = await browser.tabs.create({ url: validTabs[0], active: false });
       targetGroupId = await browser.tabs.group({ tabIds: [firstTab.id] });
       targetGroupWindowId = firstTab.windowId;
-      
+
       // Update the new group's properties (title and color).
-      await browser.tabGroups.update(targetGroupId, { 
-        title: remoteGroup.title, 
-        color: remoteGroup.color 
+      await browser.tabGroups.update(targetGroupId, {
+        title: remoteGroup.title,
+        color: remoteGroup.color
       });
     }
 
@@ -112,6 +130,7 @@ async function syncGroupsFromRemote(groupsToSync) {
     // Find which remote tabs are missing locally.
     const tabsToCreate = [];
     for (const remoteUrl of remoteGroup.tabs) {
+      if (!isValidUrl(remoteUrl)) continue; // SKIP INVALID
       if (!existingUrls.has(normalizeUrl(remoteUrl))) {
         tabsToCreate.push(remoteUrl);
       }
@@ -119,7 +138,7 @@ async function syncGroupsFromRemote(groupsToSync) {
 
     if (tabsToCreate.length > 0) {
       console.log(`[Sync] Adding ${tabsToCreate.length} new tabs to group "${remoteGroup.title}".`);
-      
+
       // Create all missing tabs.
       const newTabPromises = tabsToCreate.map(url => browser.tabs.create({
         url: url,
