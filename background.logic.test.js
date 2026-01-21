@@ -46,7 +46,7 @@ describe('background.logic', () => {
         { id: 1, title: 'Group 1', color: 'blue' },
       ]);
       browser.tabs.query.mockResolvedValue([
-        { url: 'https://example.com/1' },
+        { url: 'https://example.com/1', groupId: 1 },
       ]);
 
       await saveStateToCloud();

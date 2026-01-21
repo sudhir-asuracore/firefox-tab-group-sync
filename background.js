@@ -33,24 +33,34 @@ function normalizeUrl(url) {
 async function saveStateToCloud() {
   try {
     const deviceInfo = await getDeviceInfo();
-    
+
     if (!browser.tabGroups) {
       console.warn("Tab Groups API is not enabled. Please check about:config.");
       return;
     }
 
     const groups = await browser.tabGroups.query({});
-    const payload = [];
+    const allTabs = await browser.tabs.query({});
 
-    for (const group of groups) {
-      const tabs = await browser.tabs.query({ groupId: group.id });
-      
-      payload.push({
+    // Group tabs by groupId for faster lookup
+    const tabsByGroup = {};
+    for (const tab of allTabs) {
+      if (tab.groupId !== undefined) {
+        if (!tabsByGroup[tab.groupId]) {
+          tabsByGroup[tab.groupId] = [];
+        }
+        tabsByGroup[tab.groupId].push(tab);
+      }
+    }
+
+    const payload = groups.map(group => {
+      const tabs = tabsByGroup[group.id] || [];
+      return {
         title: group.title || "Untitled Group",
         color: group.color || "grey",
-        tabs: tabs.map(t => t.url) 
-      });
-    }
+        tabs: tabs.map(t => t.url)
+      };
+    });
 
     const key = `state_${deviceInfo.device_id}`;
     await browser.storage.sync.set({
@@ -91,16 +101,16 @@ async function syncGroupsFromRemote(groupsToSync) {
       }
 
       console.log(`[Sync] Creating new group: "${remoteGroup.title}"`);
-      
+
       // Create the first tab to anchor the new group.
       const firstTab = await browser.tabs.create({ url: remoteGroup.tabs[0], active: false });
       targetGroupId = await browser.tabs.group({ tabIds: [firstTab.id] });
       targetGroupWindowId = firstTab.windowId;
-      
+
       // Update the new group's properties (title and color).
-      await browser.tabGroups.update(targetGroupId, { 
-        title: remoteGroup.title, 
-        color: remoteGroup.color 
+      await browser.tabGroups.update(targetGroupId, {
+        title: remoteGroup.title,
+        color: remoteGroup.color
       });
     }
 
@@ -119,7 +129,7 @@ async function syncGroupsFromRemote(groupsToSync) {
 
     if (tabsToCreate.length > 0) {
       console.log(`[Sync] Adding ${tabsToCreate.length} new tabs to group "${remoteGroup.title}".`);
-      
+
       // Create all missing tabs.
       const newTabPromises = tabsToCreate.map(url => browser.tabs.create({
         url: url,

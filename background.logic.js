@@ -19,17 +19,27 @@ export async function saveStateToCloud() {
     }
 
     const groups = await browser.tabGroups.query({});
-    const payload = [];
+    const allTabs = await browser.tabs.query({});
 
-    for (const group of groups) {
-      const tabs = await browser.tabs.query({ groupId: group.id });
-      
-      payload.push({
+    // Group tabs by groupId for faster lookup
+    const tabsByGroup = {};
+    for (const tab of allTabs) {
+      if (tab.groupId !== undefined) {
+        if (!tabsByGroup[tab.groupId]) {
+          tabsByGroup[tab.groupId] = [];
+        }
+        tabsByGroup[tab.groupId].push(tab);
+      }
+    }
+
+    const payload = groups.map(group => {
+      const tabs = tabsByGroup[group.id] || [];
+      return {
         title: group.title || "Untitled Group",
         color: group.color || "grey",
-        tabs: tabs.map(t => t.url) 
-      });
-    }
+        tabs: tabs.map(t => t.url)
+      };
+    });
 
     const key = `state_${deviceInfo.device_id}`;
     await browser.storage.sync.set({
