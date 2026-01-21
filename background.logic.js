@@ -97,3 +97,89 @@ export async function restoreFromCloud(snapshotKey, selectedGroups) {
   }
   console.log("[Sync] Restore complete.");
 }
+
+export async function syncGroupsFromRemote(groupsToSync) {
+  console.log(`[Sync] Starting sync for ${groupsToSync.length} groups...`);
+
+  // Fetch all local groups once to avoid N+1 query
+  const allLocalGroups = await browser.tabGroups.query({});
+  const localGroupsMap = new Map();
+  for (const group of allLocalGroups) {
+    // Only map the first group with a given title, matching behavior of localGroups[0]
+    if (group.title && !localGroupsMap.has(group.title)) {
+      localGroupsMap.set(group.title, group);
+    }
+  }
+
+  for (const remoteGroup of groupsToSync) {
+    const localGroup = localGroupsMap.get(remoteGroup.title);
+    let targetGroupId;
+    let targetGroupWindowId;
+
+    if (localGroup) {
+      // Group with the same title exists, merge into it.
+      targetGroupId = localGroup.id;
+      targetGroupWindowId = localGroup.windowId;
+      console.log(`[Sync] Merging into existing group: "${remoteGroup.title}"`);
+    } else {
+      // Group doesn't exist, create a new one.
+      if (!remoteGroup.tabs || remoteGroup.tabs.length === 0) {
+        console.log(`[Sync] Skipping empty remote group: "${remoteGroup.title}"`);
+        continue; // Don't create empty groups.
+      }
+
+      console.log(`[Sync] Creating new group: "${remoteGroup.title}"`);
+
+      // Create the first tab to anchor the new group.
+      const firstTab = await browser.tabs.create({ url: remoteGroup.tabs[0], active: false });
+      targetGroupId = await browser.tabs.group({ tabIds: [firstTab.id] });
+      targetGroupWindowId = firstTab.windowId;
+
+      // Update the new group's properties (title and color).
+      await browser.tabGroups.update(targetGroupId, {
+        title: remoteGroup.title,
+        color: remoteGroup.color
+      });
+
+      // Update map so subsequent iterations find this newly created group
+      localGroupsMap.set(remoteGroup.title, {
+        id: targetGroupId,
+        windowId: targetGroupWindowId,
+        title: remoteGroup.title,
+        color: remoteGroup.color
+      });
+    }
+
+    // --- Merge Tabs ---
+    // Get all tabs currently in the target group.
+    const existingTabs = await browser.tabs.query({ groupId: targetGroupId });
+    const existingUrls = new Set(existingTabs.map(t => normalizeUrl(t.url)));
+
+    // Find which remote tabs are missing locally.
+    const tabsToCreate = [];
+    for (const remoteUrl of remoteGroup.tabs) {
+      if (!existingUrls.has(normalizeUrl(remoteUrl))) {
+        tabsToCreate.push(remoteUrl);
+      }
+    }
+
+    if (tabsToCreate.length > 0) {
+      console.log(`[Sync] Adding ${tabsToCreate.length} new tabs to group "${remoteGroup.title}".`);
+
+      // Create all missing tabs.
+      const newTabPromises = tabsToCreate.map(url => browser.tabs.create({
+        url: url,
+        active: false,
+        windowId: targetGroupWindowId // Ensure tabs are created in the correct window.
+      }));
+      const newTabs = await Promise.all(newTabPromises);
+      const newTabIds = newTabs.map(t => t.id);
+
+      // Add all newly created tabs to the group in one go.
+      await browser.tabs.group({ groupId: targetGroupId, tabIds: newTabIds });
+    } else {
+      console.log(`[Sync] No new tabs to add to group "${remoteGroup.title}".`);
+    }
+  }
+  console.log("[Sync] Sync process complete.");
+}
