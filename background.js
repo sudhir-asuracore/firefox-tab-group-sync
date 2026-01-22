@@ -13,7 +13,8 @@ let debounceTimer;
 async function getDeviceInfo() {
   let info = await browser.storage.local.get(["device_id", "device_name"]);
   if (!info.device_id) {
-    info.device_id = "dev_" + Math.random().toString(36).substr(2, 9);
+    // Security enhancement: Use crypto.randomUUID for better uniqueness and security
+    info.device_id = "dev_" + crypto.randomUUID();
     await browser.storage.local.set({ device_id: info.device_id });
   }
   return info;

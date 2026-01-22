@@ -6,6 +6,14 @@ jest.mock('./utils.js', () => ({
   normalizeUrl: jest.fn((url) => url.replace(/\/$/, '')),
 }));
 
+// Mock crypto.randomUUID if not available
+if (!global.crypto) {
+  global.crypto = {};
+}
+if (!global.crypto.randomUUID) {
+  global.crypto.randomUUID = () => '12345678-1234-1234-1234-1234567890ab';
+}
+
 describe('background.logic', () => {
   beforeEach(() => {
     // Clear Jest mock call histories between tests instead of using a non-existent flush()
