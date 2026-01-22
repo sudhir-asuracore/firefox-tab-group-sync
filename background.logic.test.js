@@ -21,6 +21,14 @@ describe('background.logic', () => {
     if (!global.browser.tabs.group) {
       global.browser.tabs.group = jest.fn();
     }
+
+    // Mock crypto.randomUUID for JSDOM
+    if (!global.crypto) {
+      global.crypto = {};
+    }
+    if (!global.crypto.randomUUID) {
+      global.crypto.randomUUID = jest.fn(() => '12345678-1234-1234-1234-1234567890ab');
+    }
   });
 
   describe('getDeviceInfo', () => {
