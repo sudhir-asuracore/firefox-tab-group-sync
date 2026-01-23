@@ -69,9 +69,11 @@ export async function restoreFromCloud(snapshotKey, selectedGroups) {
     if (localGroups.length > 0) {
       targetGroupId = localGroups[0].id;
     } else {
-      if (remoteGroup.tabs.length === 0) continue;
+      // Security enhancement: Filter out invalid URLs
+      const validTabs = (remoteGroup.tabs || []).map(t => normalizeUrl(t)).filter(t => t !== null);
+      if (validTabs.length === 0) continue;
 
-      const firstTab = await browser.tabs.create({ url: remoteGroup.tabs[0], active: false });
+      const firstTab = await browser.tabs.create({ url: validTabs[0], active: false });
       targetGroupId = await browser.tabs.group({ tabIds: firstTab.id });
       
       await browser.tabGroups.update(targetGroupId, { 
@@ -86,10 +88,10 @@ export async function restoreFromCloud(snapshotKey, selectedGroups) {
     for (const remoteUrl of remoteGroup.tabs) {
       const normalizedRemote = normalizeUrl(remoteUrl);
 
-      if (!localUrls.has(normalizedRemote)) {
-        console.log(`[Sync] Adding missing tab: ${remoteUrl}`);
+      if (normalizedRemote && !localUrls.has(normalizedRemote)) {
+        console.log(`[Sync] Adding missing tab: ${normalizedRemote}`);
         
-        const newTab = await browser.tabs.create({ url: remoteUrl, active: false });
+        const newTab = await browser.tabs.create({ url: normalizedRemote, active: false });
         await browser.tabs.group({ tabIds: newTab.id, groupId: targetGroupId });
         
         localUrls.add(normalizedRemote);

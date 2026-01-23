@@ -21,8 +21,20 @@ describe('normalizeUrl', () => {
     expect(normalizeUrl('https://example.com/?query=1')).toBe('https://example.com/?query=1');
   });
 
-  test('should handle invalid URLs', () => {
-    expect(normalizeUrl('not a url')).toBe('not a url');
+  test('should return null for invalid URLs', () => {
+    expect(normalizeUrl('not a url')).toBeNull();
+  });
+
+  test('should return null for javascript: URLs', () => {
+    expect(normalizeUrl('javascript:alert(1)')).toBeNull();
+  });
+
+  test('should return null for file: URLs', () => {
+    expect(normalizeUrl('file:///etc/passwd')).toBeNull();
+  });
+
+  test('should return null for data: URLs', () => {
+    expect(normalizeUrl('data:text/html,<b>Hi</b>')).toBeNull();
   });
 });
 
