@@ -1,12 +1,14 @@
 export function normalizeUrl(url) {
   try {
     const u = new URL(url);
-    // Security enhancement: Only allow http and https protocols to prevent XSS (javascript:) and other risks
+    // Security Fix: Only allow http and https protocols to prevent execution of
+    // malicious scripts (e.g. javascript:) or access to local files (file:).
     if (!['http:', 'https:'].includes(u.protocol)) {
       return null;
     }
     return u.href.replace(/\/$/, "");
   } catch (e) {
+    // If URL parsing fails, return null instead of the original string
     return null;
   }
 }
@@ -28,9 +30,7 @@ export function createGroupCard(remoteGroup, localGroups, localTabs) {
     const localUrls = new Set(localGroupTabs.map(t => normalizeUrl(t.url)));
     // Remote snapshot may store tabs as an array of strings (URLs) or objects with a `url` field.
     const remoteUrls = new Set(
-      (remoteGroup.tabs || [])
-        .map(t => normalizeUrl(typeof t === 'string' ? t : t.url))
-        .filter(url => url !== null)
+      (remoteGroup.tabs || []).map(t => normalizeUrl(typeof t === 'string' ? t : t.url))
     );
     // Consider synced when every remote URL exists locally and the remote group isn't empty.
     isSynced = remoteUrls.size > 0 && [...remoteUrls].every(url => localUrls.has(url));

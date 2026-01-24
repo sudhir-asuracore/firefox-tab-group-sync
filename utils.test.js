@@ -25,15 +25,11 @@ describe('normalizeUrl', () => {
     expect(normalizeUrl('not a url')).toBeNull();
   });
 
-  test('should return null for javascript: URLs', () => {
+  test('should return null for non-http/https protocols', () => {
     expect(normalizeUrl('javascript:alert(1)')).toBeNull();
-  });
-
-  test('should return null for file: URLs', () => {
     expect(normalizeUrl('file:///etc/passwd')).toBeNull();
-  });
-
-  test('should return null for data: URLs', () => {
+    expect(normalizeUrl('ftp://example.com')).toBeNull();
+    expect(normalizeUrl('about:config')).toBeNull();
     expect(normalizeUrl('data:text/html,<b>Hi</b>')).toBeNull();
   });
 });

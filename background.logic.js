@@ -25,11 +25,16 @@ export async function saveStateToCloud() {
     for (const group of groups) {
       const tabs = await browser.tabs.query({ groupId: group.id });
       
-      payload.push({
-        title: group.title || "Untitled Group",
-        color: group.color || "grey",
-        tabs: tabs.map(t => t.url) 
-      });
+      // Filter out invalid URLs (e.g., about:, chrome:, file:)
+      const validTabs = tabs.filter(t => normalizeUrl(t.url));
+
+      if (validTabs.length > 0) {
+        payload.push({
+          title: group.title || "Untitled Group",
+          color: group.color || "grey",
+          tabs: validTabs.map(t => t.url)
+        });
+      }
     }
 
     const key = `state_${deviceInfo.device_id}`;
@@ -69,11 +74,17 @@ export async function restoreFromCloud(snapshotKey, selectedGroups) {
     if (localGroups.length > 0) {
       targetGroupId = localGroups[0].id;
     } else {
-      // Security enhancement: Filter out invalid URLs
-      const validTabs = (remoteGroup.tabs || []).map(t => normalizeUrl(t)).filter(t => t !== null);
-      if (validTabs.length === 0) continue;
+      if (remoteGroup.tabs.length === 0) continue;
 
-      const firstTab = await browser.tabs.create({ url: validTabs[0], active: false });
+      // Find the first valid URL to anchor the group
+      const firstValidUrlIndex = remoteGroup.tabs.findIndex(url => normalizeUrl(url));
+
+      if (firstValidUrlIndex === -1) {
+        console.log(`[Sync] Skipping group "${remoteGroup.title}" (no valid URLs).`);
+        continue;
+      }
+
+      const firstTab = await browser.tabs.create({ url: remoteGroup.tabs[firstValidUrlIndex], active: false });
       targetGroupId = await browser.tabs.group({ tabIds: firstTab.id });
       
       await browser.tabGroups.update(targetGroupId, { 
@@ -83,15 +94,20 @@ export async function restoreFromCloud(snapshotKey, selectedGroups) {
     }
 
     const localTabs = await browser.tabs.query({ groupId: targetGroupId });
-    const localUrls = new Set(localTabs.map(t => normalizeUrl(t.url)));
+    const localUrls = new Set();
+    localTabs.forEach(t => {
+      const n = normalizeUrl(t.url);
+      if (n) localUrls.add(n);
+    });
 
     for (const remoteUrl of remoteGroup.tabs) {
       const normalizedRemote = normalizeUrl(remoteUrl);
 
+      // Only sync valid URLs
       if (normalizedRemote && !localUrls.has(normalizedRemote)) {
-        console.log(`[Sync] Adding missing tab: ${normalizedRemote}`);
+        console.log(`[Sync] Adding missing tab: ${remoteUrl}`);
         
-        const newTab = await browser.tabs.create({ url: normalizedRemote, active: false });
+        const newTab = await browser.tabs.create({ url: remoteUrl, active: false });
         await browser.tabs.group({ tabIds: newTab.id, groupId: targetGroupId });
         
         localUrls.add(normalizedRemote);
