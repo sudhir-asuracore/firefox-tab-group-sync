@@ -1,3 +1,5 @@
+import { normalizeUrl } from './utils.js';
+
 /**
  * Firefox Tab Group Syncer - Background Script
  * * PREREQUISITE:
@@ -20,21 +22,12 @@ async function getDeviceInfo() {
   return info;
 }
 
-function normalizeUrl(url) {
-  try {
-    const u = new URL(url);
-    return u.href.replace(/\/$/, "");
-  } catch (e) {
-    return url; // Return original if not a valid URL
-  }
-}
-
 // --- SECTION 2: CORE LOGIC (SAVE) ---
 
 async function saveStateToCloud() {
   try {
     const deviceInfo = await getDeviceInfo();
-    
+
     if (!browser.tabGroups) {
       console.warn("Tab Groups API is not enabled. Please check about:config.");
       return;
@@ -45,12 +38,17 @@ async function saveStateToCloud() {
 
     for (const group of groups) {
       const tabs = await browser.tabs.query({ groupId: group.id });
-      
-      payload.push({
-        title: group.title || "Untitled Group",
-        color: group.color || "grey",
-        tabs: tabs.map(t => t.url) 
-      });
+
+      // Filter out invalid URLs (e.g., about:, chrome:, file:) to ensure security
+      const validTabs = tabs.filter(t => normalizeUrl(t.url));
+
+      if (validTabs.length > 0) {
+        payload.push({
+          title: group.title || "Untitled Group",
+          color: group.color || "grey",
+          tabs: validTabs.map(t => t.url)
+        });
+      }
     }
 
     const key = `state_${deviceInfo.device_id}`;
@@ -91,36 +89,50 @@ async function syncGroupsFromRemote(groupsToSync) {
         continue; // Don't create empty groups.
       }
 
+      // Find the first valid URL to anchor the group
+      const firstValidUrlIndex = remoteGroup.tabs.findIndex(url => normalizeUrl(url));
+
+      if (firstValidUrlIndex === -1) {
+        console.log(`[Sync] Skipping group "${remoteGroup.title}" (no valid URLs).`);
+        continue;
+      }
+
       console.log(`[Sync] Creating new group: "${remoteGroup.title}"`);
-      
+
       // Create the first tab to anchor the new group.
-      const firstTab = await browser.tabs.create({ url: remoteGroup.tabs[0], active: false });
+      const firstTab = await browser.tabs.create({ url: remoteGroup.tabs[firstValidUrlIndex], active: false });
       targetGroupId = await browser.tabs.group({ tabIds: [firstTab.id] });
       targetGroupWindowId = firstTab.windowId;
-      
+
       // Update the new group's properties (title and color).
-      await browser.tabGroups.update(targetGroupId, { 
-        title: remoteGroup.title, 
-        color: remoteGroup.color 
+      await browser.tabGroups.update(targetGroupId, {
+        title: remoteGroup.title,
+        color: remoteGroup.color
       });
     }
 
     // --- Merge Tabs ---
     // Get all tabs currently in the target group.
     const existingTabs = await browser.tabs.query({ groupId: targetGroupId });
-    const existingUrls = new Set(existingTabs.map(t => normalizeUrl(t.url)));
+    const existingUrls = new Set();
+    existingTabs.forEach(t => {
+      const n = normalizeUrl(t.url);
+      if (n) existingUrls.add(n);
+    });
 
     // Find which remote tabs are missing locally.
     const tabsToCreate = [];
     for (const remoteUrl of remoteGroup.tabs) {
-      if (!existingUrls.has(normalizeUrl(remoteUrl))) {
+      const normalizedRemote = normalizeUrl(remoteUrl);
+      // Only sync valid URLs
+      if (normalizedRemote && !existingUrls.has(normalizedRemote)) {
         tabsToCreate.push(remoteUrl);
       }
     }
 
     if (tabsToCreate.length > 0) {
       console.log(`[Sync] Adding ${tabsToCreate.length} new tabs to group "${remoteGroup.title}".`);
-      
+
       // Create all missing tabs.
       const newTabPromises = tabsToCreate.map(url => browser.tabs.create({
         url: url,

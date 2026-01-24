@@ -1,8 +1,15 @@
 export function normalizeUrl(url) {
   try {
-    return new URL(url).href.replace(/\/$/, "");
+    const u = new URL(url);
+    // Security Fix: Only allow http and https protocols to prevent execution of
+    // malicious scripts (e.g. javascript:) or access to local files (file:).
+    if (!['http:', 'https:'].includes(u.protocol)) {
+      return null;
+    }
+    return u.href.replace(/\/$/, "");
   } catch (e) {
-    return url;
+    // If URL parsing fails, return null instead of the original string
+    return null;
   }
 }
 
