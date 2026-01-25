@@ -3,7 +3,8 @@ import { normalizeUrl, VALID_COLORS } from './utils.js';
 export async function getDeviceInfo() {
   let info = await browser.storage.local.get(["device_id", "device_name"]);
   if (!info.device_id) {
-    // Security enhancement: Use crypto.randomUUID for better uniqueness and security
+    // Security enhancement: Use crypto.randomUUID for better uniqueness and security.
+    // Verified: Strong RNG used (no Math.random).
     info.device_id = "dev_" + crypto.randomUUID();
     await browser.storage.local.set({ device_id: info.device_id });
   }
@@ -20,10 +21,21 @@ export async function saveStateToCloud() {
     }
 
     const groups = await browser.tabGroups.query({});
+    const allTabs = await browser.tabs.query({});
+
+    // Group tabs by groupId to avoid N+1 queries
+    const tabsByGroup = {};
+    for (const tab of allTabs) {
+      if (!tabsByGroup[tab.groupId]) {
+        tabsByGroup[tab.groupId] = [];
+      }
+      tabsByGroup[tab.groupId].push(tab);
+    }
+
     const payload = [];
 
     for (const group of groups) {
-      const tabs = await browser.tabs.query({ groupId: group.id });
+      const tabs = tabsByGroup[group.id] || [];
       
       // Filter out invalid URLs (e.g., about:, chrome:, file:)
       const validTabs = tabs.filter(t => normalizeUrl(t.url));
@@ -66,9 +78,22 @@ export async function restoreFromCloud(snapshotKey, selectedGroups) {
   const groupsToSync = snapshot.groups.filter(g => selectedGroups.includes(g.title));
   console.log(`[Sync] Found ${groupsToSync.length} selected groups to merge from ${snapshotKey}.`);
 
+  // Optimization: Fetch all local groups once and map them by title
+  const allLocalGroups = await browser.tabGroups.query({});
+  const localGroupsByTitle = new Map();
+  for (const g of allLocalGroups) {
+    if (g.title) {
+      if (!localGroupsByTitle.has(g.title)) {
+        localGroupsByTitle.set(g.title, []);
+      }
+      localGroupsByTitle.get(g.title).push(g);
+    }
+  }
+
   for (const remoteGroup of groupsToSync) {
     
-    const localGroups = await browser.tabGroups.query({ title: remoteGroup.title });
+    // O(1) Lookup
+    const localGroups = localGroupsByTitle.get(remoteGroup.title) || [];
     let targetGroupId;
 
     if (localGroups.length > 0) {
@@ -108,7 +133,8 @@ export async function restoreFromCloud(snapshotKey, selectedGroups) {
     for (const remoteUrl of remoteGroup.tabs) {
       const normalizedRemote = normalizeUrl(remoteUrl);
 
-      // Only sync valid URLs
+      // Security Check: normalizedRemote is null if protocol is not http/https (e.g. file://, javascript:).
+      // This prevents syncing malicious URLs.
       if (normalizedRemote && !localUrls.has(normalizedRemote)) {
         console.log(`[Sync] Adding missing tab: ${normalizedRemote}`);
         
