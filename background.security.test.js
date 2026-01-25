@@ -50,6 +50,29 @@ describe('Security: restoreFromCloud', () => {
     expect(browser.tabs.create).not.toHaveBeenCalledWith(expect.objectContaining({ url: dangerousUrl }));
   });
 
+  it('should block file:// URLs', async () => {
+    const snapshotKey = 'state_local_file';
+    const selectedGroups = ['Local File Group'];
+    const dangerousUrl = 'file:///etc/passwd';
+
+    browser.storage.sync.get.mockResolvedValue({
+      [snapshotKey]: {
+        groups: [
+          { title: 'Local File Group', color: 'blue', tabs: [dangerousUrl] },
+        ],
+      },
+    });
+    browser.tabGroups.query.mockResolvedValue([]);
+    browser.tabs.create.mockResolvedValue({ id: 123, windowId: 1 });
+    browser.tabs.group.mockResolvedValue(1);
+    browser.tabGroups.update.mockResolvedValue({});
+    browser.tabs.query.mockResolvedValue([]);
+
+    await restoreFromCloud(snapshotKey, selectedGroups);
+
+    expect(browser.tabs.create).not.toHaveBeenCalledWith(expect.objectContaining({ url: dangerousUrl }));
+  });
+
   it('should handle invalid color gracefully during sync', async () => {
     const snapshotKey = 'state_remote_id';
     const selectedGroups = ['Bad Color Group'];
