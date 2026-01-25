@@ -1,4 +1,4 @@
-import { normalizeUrl } from './utils.js';
+import { normalizeUrl, VALID_COLORS } from './utils.js';
 
 export async function getDeviceInfo() {
   let info = await browser.storage.local.get(["device_id", "device_name"]);
@@ -84,12 +84,17 @@ export async function restoreFromCloud(snapshotKey, selectedGroups) {
         continue;
       }
 
-      const firstTab = await browser.tabs.create({ url: remoteGroup.tabs[firstValidUrlIndex], active: false });
+      // Security: Use normalized URL
+      const firstTabUrl = normalizeUrl(remoteGroup.tabs[firstValidUrlIndex]);
+      const firstTab = await browser.tabs.create({ url: firstTabUrl, active: false });
       targetGroupId = await browser.tabs.group({ tabIds: firstTab.id });
       
+      // Security: Validate color
+      const safeColor = VALID_COLORS.includes(remoteGroup.color) ? remoteGroup.color : 'grey';
+
       await browser.tabGroups.update(targetGroupId, { 
         title: remoteGroup.title, 
-        color: remoteGroup.color 
+        color: safeColor
       });
     }
 
@@ -105,9 +110,9 @@ export async function restoreFromCloud(snapshotKey, selectedGroups) {
 
       // Only sync valid URLs
       if (normalizedRemote && !localUrls.has(normalizedRemote)) {
-        console.log(`[Sync] Adding missing tab: ${remoteUrl}`);
+        console.log(`[Sync] Adding missing tab: ${normalizedRemote}`);
         
-        const newTab = await browser.tabs.create({ url: remoteUrl, active: false });
+        const newTab = await browser.tabs.create({ url: normalizedRemote, active: false });
         await browser.tabs.group({ tabIds: newTab.id, groupId: targetGroupId });
         
         localUrls.add(normalizedRemote);

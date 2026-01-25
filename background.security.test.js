@@ -49,4 +49,69 @@ describe('Security: restoreFromCloud', () => {
     // This assertion confirms that AFTER fix, the code blocks this.
     expect(browser.tabs.create).not.toHaveBeenCalledWith(expect.objectContaining({ url: dangerousUrl }));
   });
+
+  it('should handle invalid color gracefully during sync', async () => {
+    const snapshotKey = 'state_remote_id';
+    const selectedGroups = ['Bad Color Group'];
+
+    // Simulate real browser behavior: throw on invalid color
+    browser.tabGroups.update.mockImplementation((id, props) => {
+        const validColors = ['blue', 'red', 'green', 'orange', 'yellow', 'purple', 'pink', 'cyan', 'grey'];
+        if (props.color && !validColors.includes(props.color)) {
+            return Promise.reject(new Error(`Invalid enumeration value "${props.color}"`));
+        }
+        return Promise.resolve();
+    });
+
+    browser.storage.sync.get.mockResolvedValue({
+      [snapshotKey]: {
+        groups: [
+          { title: 'Bad Color Group', color: 'hackerman_black', tabs: ['https://example.com'] },
+        ],
+      },
+    });
+
+    browser.tabGroups.query.mockResolvedValue([]);
+    browser.tabs.create.mockResolvedValue({ id: 123, windowId: 1 });
+    browser.tabs.group.mockResolvedValue(1);
+    browser.tabs.query.mockResolvedValue([]);
+
+    // Should complete without throwing, because logic should fallback to 'grey'
+    await expect(restoreFromCloud(snapshotKey, selectedGroups)).resolves.not.toThrow();
+
+    // Verify it called update with a valid color (likely grey)
+    expect(browser.tabGroups.update).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ color: 'grey' })
+    );
+  });
+
+  it('should use normalized URL when creating tabs', async () => {
+    const snapshotKey = 'state_remote_id';
+    const selectedGroups = ['Messy URL Group'];
+    const messyUrl = 'https://example.com/foo/';
+    const normalizedUrl = 'https://example.com/foo'; // normalizeUrl removes trailing slash
+
+    browser.storage.sync.get.mockResolvedValue({
+      [snapshotKey]: {
+        groups: [
+          { title: 'Messy URL Group', color: 'blue', tabs: [messyUrl] },
+        ],
+      },
+    });
+    browser.tabGroups.query.mockResolvedValue([]);
+    browser.tabs.create.mockResolvedValue({ id: 123, windowId: 1 });
+    browser.tabs.group.mockResolvedValue(1);
+    browser.tabs.query.mockResolvedValue([]);
+    browser.tabGroups.update.mockResolvedValue({});
+
+    await restoreFromCloud(snapshotKey, selectedGroups);
+
+    expect(browser.tabs.create).toHaveBeenCalledWith(
+        expect.objectContaining({ url: normalizedUrl })
+    );
+    expect(browser.tabs.create).not.toHaveBeenCalledWith(
+        expect.objectContaining({ url: messyUrl })
+    );
+  });
 });
