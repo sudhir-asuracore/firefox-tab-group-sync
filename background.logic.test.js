@@ -1,5 +1,5 @@
 import { jest } from '@jest/globals';
-import { getDeviceInfo, saveStateToCloud, restoreFromCloud } from './background.logic.js';
+import { getDeviceInfo, saveStateToCloud, restoreFromCloud, syncGroupsFromRemote } from './background.logic.js';
 
 // Mock the entire utils.js module
 jest.mock('./utils.js', () => ({
@@ -55,7 +55,7 @@ describe('background.logic', () => {
         { id: 1, title: 'Group 1', color: 'blue' },
       ]);
       browser.tabs.query.mockResolvedValue([
-        { url: 'https://example.com/1' },
+        { url: 'https://example.com/1', groupId: 1 },
       ]);
 
       await saveStateToCloud();
@@ -96,8 +96,47 @@ describe('background.logic', () => {
       await restoreFromCloud(snapshotKey, selectedGroups);
 
       expect(browser.tabs.create).toHaveBeenCalledWith({ url: 'https://example.com/new', active: false });
-      expect(browser.tabs.group).toHaveBeenCalledWith({ tabIds: 123 });
+      expect(browser.tabs.group).toHaveBeenCalledWith({ tabIds: [123] });
       expect(browser.tabGroups.update).toHaveBeenCalledWith(1, { title: 'Group 1', color: 'blue' });
+    });
+  });
+
+  describe('syncGroupsFromRemote', () => {
+    it('should sync groups correctly', async () => {
+      const groupsToSync = [
+        { title: 'New Group', color: 'red', tabs: ['https://example.com/1'] },
+        { title: 'Existing Group', color: 'blue', tabs: ['https://example.com/2'] }
+      ];
+
+      // Mock existing groups: 'Existing Group' exists, 'New Group' does not.
+      browser.tabGroups.query.mockResolvedValue([
+        { id: 101, title: 'Existing Group', windowId: 1 }
+      ]);
+
+      // Mocks for creating new group
+      browser.tabs.create.mockResolvedValue({ id: 201, windowId: 1 });
+      browser.tabs.group.mockResolvedValue(102);
+      browser.tabGroups.update.mockResolvedValue({});
+
+      // Mocks for checking existing tabs in groups
+      browser.tabs.query.mockImplementation((query) => {
+          return Promise.resolve([]);
+      });
+
+      await syncGroupsFromRemote(groupsToSync);
+
+      // Verify 'New Group' was created
+      // It should call tabs.create for the first tab
+      expect(browser.tabs.create).toHaveBeenCalledWith(expect.objectContaining({ url: 'https://example.com/1' }));
+      // Then create group
+      // Then update group
+      expect(browser.tabGroups.update).toHaveBeenCalledWith(102, expect.objectContaining({ title: 'New Group' }));
+
+      // Verify 'Existing Group' was merged
+      // It should add tabs to existing group (id 101)
+      expect(browser.tabs.create).toHaveBeenCalledWith(expect.objectContaining({ url: 'https://example.com/2' }));
+      // And add to group 101
+      expect(browser.tabs.group).toHaveBeenCalledWith(expect.objectContaining({ groupId: 101 }));
     });
   });
 });

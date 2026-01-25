@@ -2,4 +2,7 @@
 /.idea/
 /.junie/
 *.iml
+<<<<<<< HEAD
 .jules/
+=======
+>>>>>>> ba4490b (Optimize syncGroupsFromRemote to avoid N+1 queries)
