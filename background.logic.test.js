@@ -4,6 +4,7 @@ import { getDeviceInfo, saveStateToCloud, restoreFromCloud } from './background.
 // Mock the entire utils.js module
 jest.mock('./utils.js', () => ({
   normalizeUrl: jest.fn((url) => url.replace(/\/$/, '')),
+  VALID_COLORS: ['blue', 'red', 'green', 'orange', 'yellow', 'purple', 'pink', 'cyan', 'grey']
 }));
 
 // Mock crypto.randomUUID if not available

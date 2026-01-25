@@ -1,3 +1,5 @@
+export const VALID_COLORS = ['blue', 'red', 'green', 'orange', 'yellow', 'purple', 'pink', 'cyan', 'grey'];
+
 export function normalizeUrl(url) {
   try {
     const u = new URL(url);
@@ -21,7 +23,9 @@ export function createGroupCard(remoteGroup, localGroups, localTabs) {
   groupInfo.className = 'group-info';
 
   const colorMap = { blue: '#0060df', red: '#d92121', green: '#2ac769', orange: '#ff9400', yellow: '#ffcb00', purple: '#9059ff', pink: '#ff4bda', cyan: '#00c3e1', grey: '#737373' };
-  const dotColor = colorMap[remoteGroup.color] || '#737373';
+  // Fallback to grey if color is invalid
+  const colorKey = VALID_COLORS.includes(remoteGroup.color) ? remoteGroup.color : 'grey';
+  const dotColor = colorMap[colorKey];
 
   const localGroup = localGroups.find(g => g.title === remoteGroup.title);
   let isSynced = false;

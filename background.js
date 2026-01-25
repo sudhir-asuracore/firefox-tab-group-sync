@@ -1,4 +1,4 @@
-import { normalizeUrl } from './utils.js';
+import { normalizeUrl, VALID_COLORS } from './utils.js';
 
 /**
  * Firefox Tab Group Syncer - Background Script
@@ -100,14 +100,19 @@ async function syncGroupsFromRemote(groupsToSync) {
       console.log(`[Sync] Creating new group: "${remoteGroup.title}"`);
 
       // Create the first tab to anchor the new group.
-      const firstTab = await browser.tabs.create({ url: remoteGroup.tabs[firstValidUrlIndex], active: false });
+      // Security: Use normalized URL
+      const firstTabUrl = normalizeUrl(remoteGroup.tabs[firstValidUrlIndex]);
+      const firstTab = await browser.tabs.create({ url: firstTabUrl, active: false });
       targetGroupId = await browser.tabs.group({ tabIds: [firstTab.id] });
       targetGroupWindowId = firstTab.windowId;
 
       // Update the new group's properties (title and color).
+      // Security: Validate color to prevent crashes or API errors
+      const safeColor = VALID_COLORS.includes(remoteGroup.color) ? remoteGroup.color : 'grey';
+
       await browser.tabGroups.update(targetGroupId, {
         title: remoteGroup.title,
-        color: remoteGroup.color
+        color: safeColor
       });
     }
 
@@ -126,7 +131,8 @@ async function syncGroupsFromRemote(groupsToSync) {
       const normalizedRemote = normalizeUrl(remoteUrl);
       // Only sync valid URLs
       if (normalizedRemote && !existingUrls.has(normalizedRemote)) {
-        tabsToCreate.push(remoteUrl);
+        // Security: Use the normalized URL to ensure we create exactly what we validated
+        tabsToCreate.push(normalizedRemote);
       }
     }
 
