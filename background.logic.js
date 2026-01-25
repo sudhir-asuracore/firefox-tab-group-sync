@@ -1,9 +1,10 @@
-import { normalizeUrl } from './utils.js';
+import { normalizeUrl, VALID_COLORS } from './utils.js';
 
 export async function getDeviceInfo() {
   let info = await browser.storage.local.get(["device_id", "device_name"]);
   if (!info.device_id) {
-    info.device_id = "dev_" + Math.random().toString(36).substr(2, 9);
+    // Security enhancement: Use crypto.randomUUID for better uniqueness and security
+    info.device_id = "dev_" + crypto.randomUUID();
     await browser.storage.local.set({ device_id: info.device_id });
   }
   return info;
@@ -24,11 +25,16 @@ export async function saveStateToCloud() {
     for (const group of groups) {
       const tabs = await browser.tabs.query({ groupId: group.id });
       
-      payload.push({
-        title: group.title || "Untitled Group",
-        color: group.color || "grey",
-        tabs: tabs.map(t => t.url) 
-      });
+      // Filter out invalid URLs (e.g., about:, chrome:, file:)
+      const validTabs = tabs.filter(t => normalizeUrl(t.url));
+
+      if (validTabs.length > 0) {
+        payload.push({
+          title: group.title || "Untitled Group",
+          color: group.color || "grey",
+          tabs: validTabs.map(t => t.url)
+        });
+      }
     }
 
     const key = `state_${deviceInfo.device_id}`;
@@ -70,25 +76,43 @@ export async function restoreFromCloud(snapshotKey, selectedGroups) {
     } else {
       if (remoteGroup.tabs.length === 0) continue;
 
-      const firstTab = await browser.tabs.create({ url: remoteGroup.tabs[0], active: false });
+      // Find the first valid URL to anchor the group
+      const firstValidUrlIndex = remoteGroup.tabs.findIndex(url => normalizeUrl(url));
+
+      if (firstValidUrlIndex === -1) {
+        console.log(`[Sync] Skipping group "${remoteGroup.title}" (no valid URLs).`);
+        continue;
+      }
+
+      // Security: Use normalized URL
+      const firstTabUrl = normalizeUrl(remoteGroup.tabs[firstValidUrlIndex]);
+      const firstTab = await browser.tabs.create({ url: firstTabUrl, active: false });
       targetGroupId = await browser.tabs.group({ tabIds: firstTab.id });
       
+      // Security: Validate color
+      const safeColor = VALID_COLORS.includes(remoteGroup.color) ? remoteGroup.color : 'grey';
+
       await browser.tabGroups.update(targetGroupId, { 
         title: remoteGroup.title, 
-        color: remoteGroup.color 
+        color: safeColor
       });
     }
 
     const localTabs = await browser.tabs.query({ groupId: targetGroupId });
-    const localUrls = new Set(localTabs.map(t => normalizeUrl(t.url)));
+    const localUrls = new Set();
+    localTabs.forEach(t => {
+      const n = normalizeUrl(t.url);
+      if (n) localUrls.add(n);
+    });
 
     for (const remoteUrl of remoteGroup.tabs) {
       const normalizedRemote = normalizeUrl(remoteUrl);
 
-      if (!localUrls.has(normalizedRemote)) {
-        console.log(`[Sync] Adding missing tab: ${remoteUrl}`);
+      // Only sync valid URLs
+      if (normalizedRemote && !localUrls.has(normalizedRemote)) {
+        console.log(`[Sync] Adding missing tab: ${normalizedRemote}`);
         
-        const newTab = await browser.tabs.create({ url: remoteUrl, active: false });
+        const newTab = await browser.tabs.create({ url: normalizedRemote, active: false });
         await browser.tabs.group({ tabIds: newTab.id, groupId: targetGroupId });
         
         localUrls.add(normalizedRemote);

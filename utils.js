@@ -1,12 +1,16 @@
+export const VALID_COLORS = ['blue', 'red', 'green', 'orange', 'yellow', 'purple', 'pink', 'cyan', 'grey'];
+
 export function normalizeUrl(url) {
   try {
     const u = new URL(url);
-    // Only allow safe protocols
-    if (!['http:', 'https:', 'ftp:'].includes(u.protocol)) {
+    // Security Fix: Only allow http and https protocols to prevent execution of
+    // malicious scripts (e.g. javascript:) or access to local files (file:).
+    if (!['http:', 'https:'].includes(u.protocol)) {
       return null;
     }
     return u.href.replace(/\/$/, "");
   } catch (e) {
+    // If URL parsing fails, return null instead of the original string
     return null;
   }
 }
@@ -19,7 +23,9 @@ export function createGroupCard(remoteGroup, localGroups, localTabs) {
   groupInfo.className = 'group-info';
 
   const colorMap = { blue: '#0060df', red: '#d92121', green: '#2ac769', orange: '#ff9400', yellow: '#ffcb00', purple: '#9059ff', pink: '#ff4bda', cyan: '#00c3e1', grey: '#737373' };
-  const dotColor = colorMap[remoteGroup.color] || '#737373';
+  // Fallback to grey if color is invalid
+  const colorKey = VALID_COLORS.includes(remoteGroup.color) ? remoteGroup.color : 'grey';
+  const dotColor = colorMap[colorKey];
 
   const localGroup = localGroups.find(g => g.title === remoteGroup.title);
   let isSynced = false;

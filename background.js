@@ -1,4 +1,4 @@
-import { normalizeUrl } from './utils.js';
+import { normalizeUrl, VALID_COLORS } from './utils.js';
 
 /**
  * Firefox Tab Group Syncer - Background Script
@@ -15,13 +15,12 @@ let debounceTimer;
 async function getDeviceInfo() {
   let info = await browser.storage.local.get(["device_id", "device_name"]);
   if (!info.device_id) {
-    info.device_id = "dev_" + Math.random().toString(36).substr(2, 9);
+    // Security enhancement: Use crypto.randomUUID for better uniqueness and security
+    info.device_id = "dev_" + crypto.randomUUID();
     await browser.storage.local.set({ device_id: info.device_id });
   }
   return info;
 }
-
-// normalizeUrl is imported from utils.js
 
 // --- SECTION 2: CORE LOGIC (SAVE) ---
 
@@ -40,11 +39,16 @@ async function saveStateToCloud() {
     for (const group of groups) {
       const tabs = await browser.tabs.query({ groupId: group.id });
 
-      payload.push({
-        title: group.title || "Untitled Group",
-        color: group.color || "grey",
-        tabs: tabs.map(t => t.url)
-      });
+      // Filter out invalid URLs (e.g., about:, chrome:, file:) to ensure security
+      const validTabs = tabs.filter(t => normalizeUrl(t.url));
+
+      if (validTabs.length > 0) {
+        payload.push({
+          title: group.title || "Untitled Group",
+          color: group.color || "grey",
+          tabs: validTabs.map(t => t.url)
+        });
+      }
     }
 
     const key = `state_${deviceInfo.device_id}`;
@@ -85,45 +89,50 @@ async function syncGroupsFromRemote(groupsToSync) {
         continue; // Don't create empty groups.
       }
 
-      console.log(`[Sync] Creating new group: "${remoteGroup.title}"`);
+      // Find the first valid URL to anchor the group
+      const firstValidUrlIndex = remoteGroup.tabs.findIndex(url => normalizeUrl(url));
 
-      // Determine a safe URL for the anchor tab
-      let firstTabUrl = normalizeUrl(remoteGroup.tabs[0]);
-
-      if (!firstTabUrl) {
-          // If the first tab is unsafe, look for any safe tab in the group
-          const safeTabs = remoteGroup.tabs.map(u => normalizeUrl(u)).filter(u => u !== null);
-          if (safeTabs.length > 0) {
-              firstTabUrl = safeTabs[0];
-          } else {
-             console.log(`[Sync] Skipping group "${remoteGroup.title}" because it contains no safe URLs.`);
-             continue;
-          }
+      if (firstValidUrlIndex === -1) {
+        console.log(`[Sync] Skipping group "${remoteGroup.title}" (no valid URLs).`);
+        continue;
       }
 
+      console.log(`[Sync] Creating new group: "${remoteGroup.title}"`);
+
       // Create the first tab to anchor the new group.
+      // Security: Use normalized URL
+      const firstTabUrl = normalizeUrl(remoteGroup.tabs[firstValidUrlIndex]);
       const firstTab = await browser.tabs.create({ url: firstTabUrl, active: false });
       targetGroupId = await browser.tabs.group({ tabIds: [firstTab.id] });
       targetGroupWindowId = firstTab.windowId;
 
       // Update the new group's properties (title and color).
+      // Security: Validate color to prevent crashes or API errors
+      const safeColor = VALID_COLORS.includes(remoteGroup.color) ? remoteGroup.color : 'grey';
+
       await browser.tabGroups.update(targetGroupId, {
         title: remoteGroup.title,
-        color: remoteGroup.color
+        color: safeColor
       });
     }
 
     // --- Merge Tabs ---
     // Get all tabs currently in the target group.
     const existingTabs = await browser.tabs.query({ groupId: targetGroupId });
-    const existingUrls = new Set(existingTabs.map(t => normalizeUrl(t.url)));
+    const existingUrls = new Set();
+    existingTabs.forEach(t => {
+      const n = normalizeUrl(t.url);
+      if (n) existingUrls.add(n);
+    });
 
     // Find which remote tabs are missing locally.
     const tabsToCreate = [];
     for (const remoteUrl of remoteGroup.tabs) {
-      const safeUrl = normalizeUrl(remoteUrl);
-      if (safeUrl && !existingUrls.has(safeUrl)) {
-        tabsToCreate.push(safeUrl);
+      const normalizedRemote = normalizeUrl(remoteUrl);
+      // Only sync valid URLs
+      if (normalizedRemote && !existingUrls.has(normalizedRemote)) {
+        // Security: Use the normalized URL to ensure we create exactly what we validated
+        tabsToCreate.push(normalizedRemote);
       }
     }
 

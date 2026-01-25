@@ -21,8 +21,15 @@ describe('normalizeUrl', () => {
     expect(normalizeUrl('https://example.com/?query=1')).toBe('https://example.com/?query=1');
   });
 
-  test('should handle invalid URLs', () => {
+  test('should return null for invalid URLs', () => {
     expect(normalizeUrl('not a url')).toBeNull();
+  });
+
+  test('should return null for non-http/https protocols', () => {
+    expect(normalizeUrl('javascript:alert(1)')).toBeNull();
+    expect(normalizeUrl('file:///etc/passwd')).toBeNull();
+    expect(normalizeUrl('ftp://example.com')).toBeNull();
+    expect(normalizeUrl('about:config')).toBeNull();
   });
 });
 

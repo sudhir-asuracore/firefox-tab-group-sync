@@ -4,7 +4,16 @@ import { getDeviceInfo, saveStateToCloud, restoreFromCloud } from './background.
 // Mock the entire utils.js module
 jest.mock('./utils.js', () => ({
   normalizeUrl: jest.fn((url) => url.replace(/\/$/, '')),
+  VALID_COLORS: ['blue', 'red', 'green', 'orange', 'yellow', 'purple', 'pink', 'cyan', 'grey']
 }));
+
+// Mock crypto.randomUUID if not available
+if (!global.crypto) {
+  global.crypto = {};
+}
+if (!global.crypto.randomUUID) {
+  global.crypto.randomUUID = () => '12345678-1234-1234-1234-1234567890ab';
+}
 
 describe('background.logic', () => {
   beforeEach(() => {
