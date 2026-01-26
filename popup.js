@@ -11,6 +11,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const sourceLink = document.getElementById('source-link');
   const kofiLink = document.getElementById('kofi-link');
   const versionLabel = document.getElementById('version-label');
+  const themeButtons = Array.from(document.querySelectorAll('.theme-btn'));
 
   // Open GitHub repo in a new tab when the footer link is clicked
   if (sourceLink) {
@@ -37,6 +38,29 @@ document.addEventListener('DOMContentLoaded', () => {
   if (versionLabel) {
     const manifest = browser.runtime.getManifest();
     versionLabel.textContent = `Version ${manifest.version}`;
+  }
+
+  const applyTheme = (pref) => {
+    if (!document.body) return;
+    document.body.dataset.theme = pref;
+    themeButtons.forEach((btn) => {
+      btn.classList.toggle('active', btn.dataset.theme === pref);
+    });
+  };
+
+  if (themeButtons.length > 0) {
+    browser.storage.local.get(['theme_pref']).then((data) => {
+      const pref = data.theme_pref || 'light';
+      applyTheme(pref);
+    });
+
+    themeButtons.forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const pref = btn.dataset.theme;
+        await browser.storage.local.set({ theme_pref: pref });
+        applyTheme(pref);
+      });
+    });
   }
 
   saveDeviceNameBtn.addEventListener('click', async () => {
