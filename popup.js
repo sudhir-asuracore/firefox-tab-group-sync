@@ -34,7 +34,8 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   saveDeviceNameBtn.addEventListener('click', async () => {
-    const newName = deviceNameInput.value.trim();
+    // Security enhancement: Truncate device name to 32 chars to prevent storage bloat
+    const newName = deviceNameInput.value.trim().substring(0, 32);
     if (newName) {
       await browser.storage.local.set({ device_name: newName });
       saveDeviceNameBtn.textContent = "Saved!";
