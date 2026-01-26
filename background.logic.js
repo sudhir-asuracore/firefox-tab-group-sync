@@ -50,10 +50,13 @@ export async function saveStateToCloud() {
     }
 
     const key = `state_${deviceInfo.device_id}`;
+    // Security enhancement: Truncate device name to 32 chars to prevent storage bloat
+    const safeDeviceName = deviceInfo.device_name ? deviceInfo.device_name.substring(0, 32) : null;
+
     await browser.storage.sync.set({
       [key]: {
         timestamp: Date.now(),
-        deviceName: deviceInfo.device_name || null,
+        deviceName: safeDeviceName,
         groups: payload
       }
     });

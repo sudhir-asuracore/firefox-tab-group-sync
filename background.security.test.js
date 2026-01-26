@@ -1,5 +1,5 @@
 import { jest } from '@jest/globals';
-import { restoreFromCloud } from './background.logic.js';
+import { restoreFromCloud, saveStateToCloud } from './background.logic.js';
 
 // NOT mocking ./utils.js to test real integration
 
@@ -135,6 +135,37 @@ describe('Security: restoreFromCloud', () => {
     );
     expect(browser.tabs.create).not.toHaveBeenCalledWith(
         expect.objectContaining({ url: messyUrl })
+    );
+  });
+});
+
+describe('Security: saveStateToCloud', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    if (!global.browser.tabGroups) {
+      global.browser.tabGroups = {
+        query: jest.fn(),
+      };
+    }
+    if (!global.browser.tabs.query) {
+      global.browser.tabs.query = jest.fn();
+    }
+  });
+
+  it('should truncate device name to 32 chars to prevent storage bloat', async () => {
+    const longName = 'This is a very long device name that exceeds the thirty-two character limit';
+    browser.storage.local.get.mockResolvedValue({ device_id: 'test_id', device_name: longName });
+    browser.tabGroups.query.mockResolvedValue([]);
+    browser.tabs.query.mockResolvedValue([]);
+
+    await saveStateToCloud();
+
+    expect(browser.storage.sync.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        state_test_id: expect.objectContaining({
+          deviceName: longName.substring(0, 32)
+        })
+      })
     );
   });
 });
