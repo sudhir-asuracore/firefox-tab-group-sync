@@ -10,6 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const saveDeviceNameBtn = document.getElementById('save-device-name');
   const sourceLink = document.getElementById('source-link');
   const kofiLink = document.getElementById('kofi-link');
+  const versionLabel = document.getElementById('version-label');
 
   // Open GitHub repo in a new tab when the footer link is clicked
   if (sourceLink) {
@@ -31,6 +32,11 @@ document.addEventListener('DOMContentLoaded', () => {
         browser.tabs.create({ url });
       }
     });
+  }
+
+  if (versionLabel) {
+    const manifest = browser.runtime.getManifest();
+    versionLabel.textContent = `Version ${manifest.version}`;
   }
 
   saveDeviceNameBtn.addEventListener('click', async () => {
