@@ -52,9 +52,9 @@ describe('createGroupCard', () => {
     ],
   };
 
-  const localGroups = [
-    { id: 1, title: 'Test Group' },
-  ];
+  const localGroups = new Map([
+    ['Test Group', { id: 1, title: 'Test Group' }],
+  ]);
 
   const localTabs = [
     { groupId: 1, url: 'https://example.com/1' },
@@ -77,7 +77,7 @@ describe('createGroupCard', () => {
   });
 
   test('should create a group card with the correct title and tab count', () => {
-    const card = createGroupCard(remoteGroup, [], []);
+    const card = createGroupCard(remoteGroup, new Map(), []);
     expect(card.querySelector('.group-title').textContent).toBe('Test Group');
     expect(card.querySelector('.tab-count').textContent).toBe('2 tabs');
   });

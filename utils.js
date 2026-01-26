@@ -27,7 +27,7 @@ export function createGroupCard(remoteGroup, localGroups, localTabs) {
   const colorKey = VALID_COLORS.includes(remoteGroup.color) ? remoteGroup.color : 'grey';
   const dotColor = colorMap[colorKey];
 
-  const localGroup = localGroups.find(g => g.title === remoteGroup.title);
+  const localGroup = localGroups.get(remoteGroup.title);
   let isSynced = false;
   if (localGroup) {
     const localGroupTabs = localTabs.filter(t => t.groupId === localGroup.id);
