@@ -74,7 +74,8 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
-      const localGroups = await browser.tabGroups.query({});
+      const localGroupsList = await browser.tabGroups.query({});
+      const localGroups = new Map(localGroupsList.map(g => [g.title, g]));
       const localTabs = await browser.tabs.query({});
 
       const selector = document.createElement('select');
