@@ -56,7 +56,8 @@ async function saveStateToCloud() {
 
       if (validTabs.length > 0) {
         payload.push({
-          title: group.title || "Untitled Group",
+          // Security: Truncate title to 50 chars to prevent storage bloat
+          title: (group.title || "Untitled Group").substring(0, 50),
           color: group.color || "grey",
           tabs: validTabs.map(t => t.url)
         });

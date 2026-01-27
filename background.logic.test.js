@@ -74,6 +74,34 @@ describe('background.logic', () => {
         },
       });
     });
+
+    it('should truncate long group titles to 50 characters', async () => {
+      browser.storage.local.get.mockResolvedValue({ device_id: 'test_id' });
+      const longTitle = 'A'.repeat(100);
+      const expectedTitle = 'A'.repeat(50);
+      browser.tabGroups.query.mockResolvedValue([
+        { id: 1, title: longTitle, color: 'blue' },
+      ]);
+      browser.tabs.query.mockResolvedValue([
+        { url: 'https://example.com/1', groupId: 1 },
+      ]);
+
+      await saveStateToCloud();
+
+      expect(browser.storage.sync.set).toHaveBeenCalledWith({
+        state_test_id: {
+          timestamp: expect.any(Number),
+          deviceName: null,
+          groups: [
+            {
+              title: expectedTitle,
+              color: 'blue',
+              tabs: ['https://example.com/1'],
+            },
+          ],
+        },
+      });
+    });
   });
 
   describe('restoreFromCloud', () => {
