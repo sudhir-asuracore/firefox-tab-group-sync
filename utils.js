@@ -1,4 +1,5 @@
 export const VALID_COLORS = ['blue', 'red', 'green', 'orange', 'yellow', 'purple', 'pink', 'cyan', 'grey'];
+export const MAX_TITLE_LENGTH = 100;
 
 export function normalizeUrl(url) {
   try {

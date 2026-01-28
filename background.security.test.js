@@ -1,5 +1,6 @@
 import { jest } from '@jest/globals';
 import { restoreFromCloud, saveStateToCloud } from './background.logic.js';
+import { MAX_TITLE_LENGTH } from './utils.js';
 
 // NOT mocking ./utils.js to test real integration
 
@@ -164,6 +165,33 @@ describe('Security: saveStateToCloud', () => {
       expect.objectContaining({
         state_test_id: expect.objectContaining({
           deviceName: longName.substring(0, 32)
+        })
+      })
+    );
+  });
+
+  it('should truncate group title to MAX_TITLE_LENGTH chars', async () => {
+    const longTitle = 'a'.repeat(MAX_TITLE_LENGTH + 50);
+    const expectedTitle = 'a'.repeat(MAX_TITLE_LENGTH);
+
+    browser.storage.local.get.mockResolvedValue({ device_id: 'test_id' });
+    browser.tabGroups.query.mockResolvedValue([
+      { id: 1, title: longTitle, color: 'blue' }
+    ]);
+    browser.tabs.query.mockResolvedValue([
+      { id: 10, groupId: 1, url: 'https://example.com' }
+    ]);
+
+    await saveStateToCloud();
+
+    expect(browser.storage.sync.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        state_test_id: expect.objectContaining({
+          groups: expect.arrayContaining([
+            expect.objectContaining({
+              title: expectedTitle
+            })
+          ])
         })
       })
     );
