@@ -4,7 +4,8 @@ import { getDeviceInfo, saveStateToCloud, restoreFromCloud } from './background.
 // Mock the entire utils.js module
 jest.mock('./utils.js', () => ({
   normalizeUrl: jest.fn((url) => url.replace(/\/$/, '')),
-  VALID_COLORS: ['blue', 'red', 'green', 'orange', 'yellow', 'purple', 'pink', 'cyan', 'grey']
+  VALID_COLORS: ['blue', 'red', 'green', 'orange', 'yellow', 'purple', 'pink', 'cyan', 'grey'],
+  MAX_TITLE_LENGTH: 100
 }));
 
 // Mock crypto.randomUUID if not available
@@ -73,6 +74,31 @@ describe('background.logic', () => {
           ],
         },
       });
+    });
+
+    it('should truncate group titles that exceed MAX_TITLE_LENGTH', async () => {
+      browser.storage.local.get.mockResolvedValue({ device_id: 'test_id' });
+      const longTitle = 'a'.repeat(150);
+      const expectedTitle = 'a'.repeat(100);
+
+      browser.tabGroups.query.mockResolvedValue([
+        { id: 1, title: longTitle, color: 'blue' },
+      ]);
+      browser.tabs.query.mockResolvedValue([
+        { url: 'https://example.com/1', groupId: 1 },
+      ]);
+
+      await saveStateToCloud();
+
+      expect(browser.storage.sync.set).toHaveBeenCalledWith(expect.objectContaining({
+        state_test_id: expect.objectContaining({
+          groups: expect.arrayContaining([
+            expect.objectContaining({
+              title: expectedTitle
+            })
+          ])
+        })
+      }));
     });
   });
 

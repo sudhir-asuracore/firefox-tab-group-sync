@@ -1,4 +1,4 @@
-import { normalizeUrl, VALID_COLORS } from './utils.js';
+import { normalizeUrl, VALID_COLORS, MAX_TITLE_LENGTH } from './utils.js';
 
 export async function getDeviceInfo() {
   let info = await browser.storage.local.get(["device_id", "device_name"]);
@@ -41,8 +41,11 @@ export async function saveStateToCloud() {
       const validTabs = tabs.filter(t => normalizeUrl(t.url));
 
       if (validTabs.length > 0) {
+        // Security enhancement: Truncate title to prevent storage exhaustion
+        const safeTitle = (group.title || "Untitled Group").substring(0, MAX_TITLE_LENGTH);
+
         payload.push({
-          title: group.title || "Untitled Group",
+          title: safeTitle,
           color: group.color || "grey",
           tabs: validTabs.map(t => t.url)
         });
