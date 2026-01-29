@@ -8,6 +8,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const selectorContainer = document.getElementById('selector-container');
   const deviceNameInput = document.getElementById('device-name-input');
   const saveDeviceNameBtn = document.getElementById('save-device-name');
+  const forceSyncBtn = document.getElementById('force-sync-btn');
+  const deviceSyncStatus = document.getElementById('device-sync-status');
   const sourceLink = document.getElementById('source-link');
   const kofiLink = document.getElementById('kofi-link');
   const versionLabel = document.getElementById('version-label');
@@ -48,6 +50,12 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   };
 
+  const setStatusMsg = (message) => {
+    if (statusMsg) {
+      statusMsg.textContent = message || '';
+    }
+  };
+
   if (themeButtons.length > 0) {
     browser.storage.local.get(['theme_pref']).then((data) => {
       const pref = data.theme_pref || 'light';
@@ -72,6 +80,71 @@ document.addEventListener('DOMContentLoaded', () => {
       setTimeout(() => { saveDeviceNameBtn.textContent = "Save"; }, 1500);
     }
   });
+
+  if (forceSyncBtn) {
+    forceSyncBtn.disabled = true;
+  }
+
+  const waitForAutoSave = async () => {
+    if (!forceSyncBtn) return;
+    try {
+      const response = await browser.runtime.sendMessage({ type: "waitForAutoSave" });
+      if (response && response.status === "success") {
+        forceSyncBtn.disabled = false;
+      } else {
+        const message = response && response.message ? response.message : "Auto-sync pending.";
+        if (deviceSyncStatus) {
+          deviceSyncStatus.textContent = message;
+        }
+      }
+    } catch (error) {
+    }
+  };
+
+  if (forceSyncBtn) {
+    forceSyncBtn.addEventListener('click', async () => {
+      const originalText = forceSyncBtn.textContent;
+      forceSyncBtn.disabled = true;
+      forceSyncBtn.textContent = "Syncing...";
+    setStatusMsg("Pushing current groups to sync...");
+      if (deviceSyncStatus) {
+        deviceSyncStatus.textContent = "Syncing...";
+      }
+
+      try {
+        const response = await browser.runtime.sendMessage({ type: "forceSync" });
+      if (response && response.status === "success") {
+        const countText = typeof response.count === 'number'
+          ? `${response.count} group(s) synced.`
+          : "Groups synced.";
+        setStatusMsg(countText);
+        if (deviceSyncStatus) {
+          deviceSyncStatus.textContent = countText;
+          setTimeout(() => {
+            if (deviceSyncStatus.textContent === countText) {
+              deviceSyncStatus.textContent = "";
+            }
+          }, 4000);
+        }
+      } else {
+          const message = response && response.message ? response.message : "Sync failed.";
+        setStatusMsg(`Error: ${message}`);
+          if (deviceSyncStatus) {
+            deviceSyncStatus.textContent = "Sync failed.";
+          }
+        }
+      } catch (error) {
+      setStatusMsg(`Error: ${error.message}`);
+        if (deviceSyncStatus) {
+          deviceSyncStatus.textContent = "Sync failed.";
+        }
+      } finally {
+        forceSyncBtn.textContent = originalText;
+        forceSyncBtn.disabled = false;
+      setTimeout(() => { setStatusMsg(""); }, 2000);
+      }
+    });
+  }
 
   async function initializeSyncUI() {
     try {
@@ -124,7 +197,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const renderGroups = async (snapshotKey) => {
         listContainer.textContent = '';
-        statusMsg.textContent = ''; // Clear status message
+        setStatusMsg(''); // Clear status message
         const snapshot = allData[snapshotKey];
 
         if (!snapshot || !snapshot.groups) {
@@ -149,7 +222,7 @@ document.addEventListener('DOMContentLoaded', () => {
           syncBtn.textContent = "Sync Selected Groups";
         } else {
           syncBtn.style.display = 'none';
-          statusMsg.textContent = 'Already in sync';
+          setStatusMsg('Already in sync');
         }
       };
 
@@ -162,13 +235,13 @@ document.addEventListener('DOMContentLoaded', () => {
           .map(cb => cb.dataset.groupTitle);
 
         if (selectedGroups.length === 0) {
-          statusMsg.textContent = "No groups selected.";
+          setStatusMsg("No groups selected.");
           return;
         }
 
         syncBtn.disabled = true;
         syncBtn.textContent = "Syncing...";
-        statusMsg.textContent = `Syncing ${selectedGroups.length} group(s)...`;
+        setStatusMsg(`Syncing ${selectedGroups.length} group(s)...`);
 
         try {
           const snapshotKey = selector.value;
@@ -180,15 +253,15 @@ document.addEventListener('DOMContentLoaded', () => {
             groups: groupsToSync
           });
 
-          statusMsg.textContent = "Sync successful!";
+          setStatusMsg("Sync successful!");
           setTimeout(() => {
-            statusMsg.textContent = "";
+            setStatusMsg("");
             initializeSyncUI(); // Re-initialize to update synced status
           }, 2000);
 
         } catch (error) {
           console.error("Sync failed:", error);
-          statusMsg.textContent = `Error: ${error.message}`;
+          setStatusMsg(`Error: ${error.message}`);
           syncBtn.disabled = false;
           syncBtn.textContent = "Sync Selected Groups";
         }
@@ -209,4 +282,5 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   initializeSyncUI();
+  waitForAutoSave();
 });

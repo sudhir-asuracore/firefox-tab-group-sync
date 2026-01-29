@@ -55,9 +55,21 @@
       background: var(--panel);
       color: var(--text);
     }
+    #force-sync-btn {
+      padding: 5px 10px;
+      border-radius: 3px;
+      border: 1px solid var(--border);
+      cursor: pointer;
+      background: var(--accent);
+      color: white;
+    }
+    #force-sync-btn:hover { background: var(--accent-hover); }
+    #force-sync-btn:disabled { background: #777; color: #e0e0e0; cursor: default; }
     #device-label { font-size: 10px; color: var(--muted-2); text-align: right; margin-top: 5px; }
-    .device-row { display: flex; align-items: center; justify-content: flex-end; gap: 6px; margin-top: 5px; }
+    .device-row { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-top: 5px; }
     .device-row #device-label { margin-top: 0; }
+    .device-meta-right { display: flex; align-items: center; gap: 6px; }
+    .device-sync-status { font-size: 10px; color: var(--muted-2); min-height: 12px; }
 
     h2 { margin-top: 0; font-size: 16px; color: var(--text); }
 
@@ -151,22 +163,26 @@
     <div class="device-settings">
       <input type="text" id="device-name-input" maxlength="32" placeholder="Set Current Device Name (Optional)">
       <button id="save-device-name">Save</button>
+      <button id="force-sync-btn" title="Force push current tab groups to sync">Force push</button>
     </div>
     <div class="device-row">
-      <div id="device-label" class="device-id"></div>
-      <span class="meta-divider">•</span>
-      <div class="theme-toggle" aria-label="Theme">
-        <button class="theme-btn" data-theme="light" title="Light">
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <circle cx="12" cy="12" r="4" fill="currentColor"></circle>
-            <path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
-          </svg>
-        </button>
-        <button class="theme-btn" data-theme="dark" title="Dark">
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M21 14.5A8.5 8.5 0 0 1 9.5 3a7 7 0 1 0 11.5 11.5z" fill="currentColor"></path>
-          </svg>
-        </button>
+      <div id="device-sync-status" class="device-sync-status"></div>
+      <div class="device-meta-right">
+        <div id="device-label" class="device-id"></div>
+        <span class="meta-divider">•</span>
+        <div class="theme-toggle" aria-label="Theme">
+          <button class="theme-btn" data-theme="light" title="Light">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="12" cy="12" r="4" fill="currentColor"></circle>
+              <path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+            </svg>
+          </button>
+          <button class="theme-btn" data-theme="dark" title="Dark">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M21 14.5A8.5 8.5 0 0 1 9.5 3a7 7 0 1 0 11.5 11.5z" fill="currentColor"></path>
+            </svg>
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -176,7 +192,6 @@
   <div id="group-list">Loading...</div>
 
   <button id="sync-btn">Sync Selected Groups</button>
-  <div id="status-msg" class="status"></div>
 
   <div class="footer">
     <!-- Ko-fi donate button (image-based, MV3-friendly) aligned left -->
