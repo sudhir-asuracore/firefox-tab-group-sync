@@ -7,3 +7,8 @@
 **Vulnerability:** Unrestricted device name length could exhaust `browser.storage.sync` quotas or cause DoS.
 **Learning:** Client-side validation in UI (`maxlength`) is insufficient; backend logic must also enforce limits on data before persisting to shared storage.
 **Prevention:** Enforce strict length limits on all user-controlled strings (names, titles) before writing to sync storage.
+
+## 2026-01-21 - [Logic Duplication Risk]
+**Vulnerability:** Core business logic is duplicated between `background.js` (production) and `background.logic.js` (testing), creating a risk where security patches are only applied to one.
+**Learning:** `background.js` does not import from `background.logic.js` but reimplements the same functions.
+**Prevention:** Always verify if a logic change needs to be applied to multiple files by searching for similar function names or logic patterns. Ideally, refactor to share code, but for now, double-patching is required.
