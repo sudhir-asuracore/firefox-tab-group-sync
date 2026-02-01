@@ -137,6 +137,33 @@ describe('Security: restoreFromCloud', () => {
         expect.objectContaining({ url: messyUrl })
     );
   });
+
+  it('should truncate group titles that exceed MAX_TITLE_LENGTH when restoring', async () => {
+    const snapshotKey = 'state_long_title';
+    const longTitle = 'a'.repeat(150);
+    // MAX_TITLE_LENGTH is 100
+    const expectedTitle = 'a'.repeat(100);
+
+    browser.storage.sync.get.mockResolvedValue({
+      [snapshotKey]: {
+        groups: [
+          { title: longTitle, color: 'blue', tabs: ['https://example.com'] },
+        ],
+      },
+    });
+    browser.tabGroups.query.mockResolvedValue([]);
+    browser.tabs.create.mockResolvedValue({ id: 123, windowId: 1 });
+    browser.tabs.group.mockResolvedValue(1);
+    browser.tabs.query.mockResolvedValue([]);
+    browser.tabGroups.update.mockResolvedValue({});
+
+    await restoreFromCloud(snapshotKey, [longTitle]);
+
+    expect(browser.tabGroups.update).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ title: expectedTitle })
+    );
+  });
 });
 
 describe('Security: saveStateToCloud', () => {
