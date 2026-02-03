@@ -137,6 +137,34 @@ describe('Security: restoreFromCloud', () => {
         expect.objectContaining({ url: messyUrl })
     );
   });
+
+  it('should truncate group titles to 100 chars when restoring from cloud to prevent DoS', async () => {
+    const snapshotKey = 'state_hacker_long_title';
+    const longTitle = 'A'.repeat(150);
+    const selectedGroups = [longTitle];
+    const safeTitle = 'A'.repeat(100);
+
+    browser.storage.sync.get.mockResolvedValue({
+      [snapshotKey]: {
+        groups: [
+          { title: longTitle, color: 'blue', tabs: ['https://example.com'] },
+        ],
+      },
+    });
+    browser.tabGroups.query.mockResolvedValue([]);
+    browser.tabs.create.mockResolvedValue({ id: 999, windowId: 1 });
+    browser.tabs.group.mockResolvedValue(1);
+    browser.tabGroups.update.mockResolvedValue({});
+    browser.tabs.query.mockResolvedValue([]);
+
+    await restoreFromCloud(snapshotKey, selectedGroups);
+
+    // Expect the title to be truncated to 100 chars
+    expect(browser.tabGroups.update).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ title: safeTitle })
+    );
+  });
 });
 
 describe('Security: saveStateToCloud', () => {
