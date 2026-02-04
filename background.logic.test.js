@@ -125,5 +125,29 @@ describe('background.logic', () => {
       expect(browser.tabs.group).toHaveBeenCalledWith({ tabIds: 123 });
       expect(browser.tabGroups.update).toHaveBeenCalledWith(1, { title: 'Group 1', color: 'blue' });
     });
+
+    it('should truncate group titles that exceed MAX_TITLE_LENGTH', async () => {
+      const snapshotKey = 'state_remote_id';
+      const longTitle = 'a'.repeat(150);
+      const expectedTitle = 'a'.repeat(100);
+      const selectedGroups = [longTitle];
+
+      browser.storage.sync.get.mockResolvedValue({
+        [snapshotKey]: {
+          groups: [
+            { title: longTitle, color: 'blue', tabs: ['https://example.com/new'] },
+          ],
+        },
+      });
+      browser.tabGroups.query.mockResolvedValue([]);
+      browser.tabs.create.mockResolvedValue({ id: 123 });
+      browser.tabs.group.mockResolvedValue(1);
+      browser.tabGroups.update.mockResolvedValue({});
+      browser.tabs.query.mockResolvedValue([]);
+
+      await restoreFromCloud(snapshotKey, selectedGroups);
+
+      expect(browser.tabGroups.update).toHaveBeenCalledWith(1, { title: expectedTitle, color: 'blue' });
+    });
   });
 });
