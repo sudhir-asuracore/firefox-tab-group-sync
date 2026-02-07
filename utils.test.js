@@ -74,12 +74,14 @@ describe('createGroupCard', () => {
     const card = createGroupCard(remoteGroup, localGroups, unsyncedLocalTabs);
     expect(card.classList.contains('synced')).toBe(false);
     expect(card.querySelector('.sync-checkbox')).not.toBe(null);
+    expect(card.querySelector('.tab-sync-indicator')).not.toBe(null);
+    expect(card.querySelector('.tab-checkbox')).not.toBe(null);
   });
 
   test('should create a group card with the correct title and tab count', () => {
     const card = createGroupCard(remoteGroup, new Map(), []);
     expect(card.querySelector('.group-title').textContent).toBe('Test Group');
-    expect(card.querySelector('.tab-count').textContent).toBe('2 tabs');
+    expect(card.querySelector('.tab-count').textContent).toBe('2/2 tabs selected');
   });
 
   test('should detect synced state when remote tabs are strings', () => {
@@ -95,5 +97,7 @@ describe('createGroupCard', () => {
     const card = createGroupCard(remoteGroupStrings, localGroups, unsyncedLocalTabs);
     expect(card.classList.contains('synced')).toBe(false);
     expect(card.querySelector('.sync-checkbox')).not.toBe(null);
+    expect(card.querySelector('.tab-sync-indicator')).not.toBe(null);
+    expect(card.querySelector('.tab-checkbox')).not.toBe(null);
   });
 });
