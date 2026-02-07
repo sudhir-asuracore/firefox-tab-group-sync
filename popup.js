@@ -1,4 +1,4 @@
-import { createGroupCard } from './utils.js';
+import { createGroupCard, normalizeUrl } from './utils.js';
 
 document.addEventListener('DOMContentLoaded', () => {
   const listContainer = document.getElementById('group-list');
@@ -208,10 +208,30 @@ document.addEventListener('DOMContentLoaded', () => {
 
         let anyUnsynced = false;
 
-        snapshot.groups.forEach(remoteGroup => {
-          const card = createGroupCard(remoteGroup, localGroups, localTabs);
+        const isGroupSynced = (remoteGroup) => {
+          const localGroup = localGroups.get(remoteGroup.title);
+          if (!localGroup) return false;
+          const localGroupTabs = localTabs.filter(t => t.groupId === localGroup.id);
+          const localUrls = new Set(localGroupTabs.map(t => normalizeUrl(t.url)).filter(u => u !== null));
+          const remoteUrls = new Set(
+            (remoteGroup.tabs || [])
+              .map(t => normalizeUrl(typeof t === 'string' ? t : t.url))
+              .filter(u => u !== null)
+          );
+          return remoteUrls.size > 0 && [...remoteUrls].every(url => localUrls.has(url));
+        };
+
+        const sortedGroups = snapshot.groups
+          .map(group => ({ group, synced: isGroupSynced(group) }))
+          .sort((a, b) => {
+            if (a.synced !== b.synced) return a.synced ? -1 : 1;
+            return a.group.title.localeCompare(b.group.title);
+          });
+
+        sortedGroups.forEach(({ group, synced }) => {
+          const card = createGroupCard(group, localGroups, localTabs);
           listContainer.appendChild(card);
-          if (!card.classList.contains('synced')) {
+          if (!synced) {
             anyUnsynced = true;
           }
         });
@@ -219,7 +239,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (anyUnsynced) {
           syncBtn.style.display = 'block';
           syncBtn.disabled = false;
-          syncBtn.textContent = "Sync Selected Groups";
+          syncBtn.textContent = "Sync Selected Tabs";
         } else {
           syncBtn.style.display = 'none';
           setStatusMsg('Already in sync');
@@ -231,22 +251,37 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Use onclick to avoid duplicate listeners when initializeSyncUI is called again
       syncBtn.onclick = async () => {
-        const selectedGroups = Array.from(listContainer.querySelectorAll('.sync-checkbox:checked'))
-          .map(cb => cb.dataset.groupTitle);
+        const selectedTabCheckboxes = Array.from(listContainer.querySelectorAll('.tab-checkbox:checked'));
+        const selectedTabsByGroup = new Map();
 
-        if (selectedGroups.length === 0) {
-          setStatusMsg("No groups selected.");
+        selectedTabCheckboxes.forEach((cb) => {
+          const groupTitle = cb.dataset.groupTitle;
+          const tabUrl = cb.dataset.tabUrl;
+          if (!selectedTabsByGroup.has(groupTitle)) {
+            selectedTabsByGroup.set(groupTitle, new Set());
+          }
+          selectedTabsByGroup.get(groupTitle).add(tabUrl);
+        });
+
+        if (selectedTabsByGroup.size === 0) {
+          setStatusMsg("No tabs selected.");
           return;
         }
 
         syncBtn.disabled = true;
         syncBtn.textContent = "Syncing...";
-        setStatusMsg(`Syncing ${selectedGroups.length} group(s)...`);
+        setStatusMsg(`Syncing ${selectedTabsByGroup.size} group(s)...`);
 
         try {
           const snapshotKey = selector.value;
           const remoteSnapshot = allData[snapshotKey];
-          const groupsToSync = remoteSnapshot.groups.filter(g => selectedGroups.includes(g.title));
+          const groupsToSync = remoteSnapshot.groups
+            .filter(g => selectedTabsByGroup.has(g.title))
+            .map(g => ({
+              title: g.title,
+              color: g.color,
+              tabs: Array.from(selectedTabsByGroup.get(g.title))
+            }));
 
           await browser.runtime.sendMessage({
             type: "syncGroups",
@@ -263,7 +298,7 @@ document.addEventListener('DOMContentLoaded', () => {
           console.error("Sync failed:", error);
           setStatusMsg(`Error: ${error.message}`);
           syncBtn.disabled = false;
-          syncBtn.textContent = "Sync Selected Groups";
+          syncBtn.textContent = "Sync Selected Tabs";
         }
       };
 

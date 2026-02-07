@@ -91,17 +91,71 @@
       padding: 10px;
       margin-bottom: 8px;
       display: flex;
-      align-items: center;
-      justify-content: space-between;
+      flex-direction: column;
+      gap: 6px;
     }
 
     .group-card.synced { background-color: var(--synced-bg); }
 
-    .group-info { display: flex; align-items: center; gap: 10px; }
+    .group-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .group-info { display: flex; align-items: center; gap: 8px; }
+    .group-left { display: flex; align-items: center; gap: 8px; }
     .sync-checkbox { transform: scale(1.2); margin-left: 4px; }
     .color-dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
     .group-title { font-weight: 600; font-size: 14px; }
     .tab-count { color: var(--muted); font-size: 12px; }
+    .group-toggle {
+      width: 22px;
+      height: 22px;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      background: var(--panel);
+      color: var(--text);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      padding: 0;
+    }
+    .group-toggle svg { width: 10px; height: 10px; transition: transform 0.15s ease; }
+    .group-card.expanded .group-toggle svg { transform: rotate(90deg); }
+    .tab-list {
+      list-style: none;
+      margin: 2px 0 0;
+      padding: 6px 8px;
+      border-top: 1px solid var(--border);
+      border-radius: 4px;
+      background: var(--bg);
+      display: none;
+    }
+    .group-card.expanded .tab-list { display: block; }
+    .tab-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 6px;
+      padding: 4px 0;
+    }
+    .tab-checkbox { margin-top: 2px; }
+    .tab-sync-indicator {
+      width: 16px;
+      height: 16px;
+      margin-top: 1px;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: #22c55e;
+      color: #ffffff;
+      font-size: 11px;
+      line-height: 1;
+      flex: 0 0 auto;
+    }
+    .tab-url {
+      font-size: 12px;
+      color: var(--muted);
+      word-break: break-all;
+    }
+    .tab-item.synced .tab-url { color: var(--muted-2); }
 
     #sync-btn {
       width: 100%;
@@ -191,12 +245,12 @@
   <div id="selector-container"></div>
   <div id="group-list">Loading...</div>
 
-  <button id="sync-btn">Sync Selected Groups</button>
+  <button id="sync-btn">Sync Selected Tabs</button>
 
   <div class="footer">
     <!-- Ko-fi donate button (image-based, MV3-friendly) aligned left -->
     <a id="kofi-link" class="kofi-button" href="https://ko-fi.com/U7U61FUIAB" target="_blank" rel="noopener noreferrer" title="Support me on Ko-fi">
-      <img height='36' style='border:0px;height:36px;' src='https://storage.ko-fi.com/cdn/kofi2.png?v=6' border='0' alt='Buy Me a Coffee at ko-fi.com' />
+      <img height='36' style='border:0px;height:36px;' src='icons/kofi_beige.png' border='0' alt='Buy Me a Coffee at ko-fi.com' />
     </a>
     <!-- Source/Report Issue aligned right -->
     <div class="right">
