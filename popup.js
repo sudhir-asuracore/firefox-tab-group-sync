@@ -13,6 +13,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const sourceLink = document.getElementById('source-link');
   const kofiLink = document.getElementById('kofi-link');
   const versionLabel = document.getElementById('version-label');
+  const mirrorCheckbox = document.getElementById('mirror-checkbox');
+  const syncRow = document.querySelector('.sync-row');
   const themeButtons = Array.from(document.querySelectorAll('.theme-btn'));
 
   // Open GitHub repo in a new tab when the footer link is clicked
@@ -53,6 +55,23 @@ document.addEventListener('DOMContentLoaded', () => {
   const setStatusMsg = (message) => {
     if (statusMsg) {
       statusMsg.textContent = message || '';
+    }
+  };
+
+  const updateSyncUIState = () => {
+    if (!listContainer) return;
+    const selectedTabs = listContainer.querySelectorAll('.tab-checkbox:checked');
+    const hasSelection = selectedTabs.length > 0;
+
+    if (mirrorCheckbox) {
+      mirrorCheckbox.disabled = !hasSelection;
+      if (!hasSelection) {
+        mirrorCheckbox.checked = false;
+      }
+    }
+
+    if (syncBtn) {
+      syncBtn.disabled = !hasSelection;
     }
   };
 
@@ -153,7 +172,7 @@ document.addEventListener('DOMContentLoaded', () => {
         throw new Error("The Tab Groups API is not enabled. Please enable 'extensions.tabGroups.enabled' in about:config.");
       }
 
-      const localData = await browser.storage.local.get(["device_id", "device_name"]);
+      const localData = await browser.storage.local.get(["device_id", "device_name", "last_selected_snapshot_key"]);
       const currentDeviceId = localData.device_id || "unknown";
       deviceNameInput.value = localData.device_name || '';
       deviceLabel.textContent = `ID: ${currentDeviceId}`;
@@ -171,10 +190,11 @@ document.addEventListener('DOMContentLoaded', () => {
         p.textContent = "No remote snapshots found.";
         p.style.color = '#666';
         listContainer.appendChild(p);
-        syncBtn.style.display = 'block';
+        if (syncRow) syncRow.style.display = 'flex';
         syncBtn.disabled = true;
         syncBtn.textContent = "Nothing to Sync";
         syncBtn.title = "There are no remote snapshots to sync from.";
+        updateSyncUIState();
         return;
       }
 
@@ -202,7 +222,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (!snapshot || !snapshot.groups) {
           listContainer.textContent = 'No groups found in this snapshot.';
-          syncBtn.style.display = 'none';
+          if (syncRow) syncRow.style.display = 'none';
           return;
         }
 
@@ -236,23 +256,33 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         });
 
-        if (anyUnsynced) {
-          syncBtn.style.display = 'block';
-          syncBtn.disabled = false;
+        if (snapshot.groups.length > 0) {
+          if (syncRow) syncRow.style.display = 'flex';
           syncBtn.textContent = "Sync Selected Tabs";
-        } else {
-          syncBtn.style.display = 'none';
-          setStatusMsg('Already in sync');
+          if (!anyUnsynced) {
+            setStatusMsg('Already in sync');
+          }
         }
+
+        updateSyncUIState();
       };
 
+      if (localData.last_selected_snapshot_key && remoteKeys.includes(localData.last_selected_snapshot_key)) {
+        selector.value = localData.last_selected_snapshot_key;
+      }
+
       await renderGroups(selector.value);
-      selector.addEventListener('change', () => renderGroups(selector.value));
+      selector.addEventListener('change', async () => {
+        await browser.storage.local.set({ last_selected_snapshot_key: selector.value });
+        renderGroups(selector.value);
+      });
+      listContainer.onchange = updateSyncUIState;
 
       // Use onclick to avoid duplicate listeners when initializeSyncUI is called again
       syncBtn.onclick = async () => {
         const selectedTabCheckboxes = Array.from(listContainer.querySelectorAll('.tab-checkbox:checked'));
         const selectedTabsByGroup = new Map();
+        const mirrorEnabled = mirrorCheckbox && mirrorCheckbox.checked;
 
         selectedTabCheckboxes.forEach((cb) => {
           const groupTitle = cb.dataset.groupTitle;
@@ -280,12 +310,13 @@ document.addEventListener('DOMContentLoaded', () => {
             .map(g => ({
               title: g.title,
               color: g.color,
-              tabs: Array.from(selectedTabsByGroup.get(g.title))
+              tabs: mirrorEnabled ? g.tabs : Array.from(selectedTabsByGroup.get(g.title))
             }));
 
           await browser.runtime.sendMessage({
             type: "syncGroups",
-            groups: groupsToSync
+            groups: groupsToSync,
+            mirror: mirrorEnabled
           });
 
           setStatusMsg("Sync successful!");
@@ -310,7 +341,7 @@ document.addEventListener('DOMContentLoaded', () => {
       errorP.style.color = 'red';
       errorP.style.fontWeight = 'bold';
       listContainer.appendChild(errorP);
-      syncBtn.style.display = 'block';
+      if (syncRow) syncRow.style.display = 'flex';
       syncBtn.disabled = true;
       syncBtn.textContent = "Error";
     }

@@ -158,7 +158,7 @@
     .tab-item.synced .tab-url { color: var(--muted-2); }
 
     #sync-btn {
-      width: 100%;
+      flex: 1;
       padding: 10px;
       background-color: var(--accent);
       color: white;
@@ -166,7 +166,6 @@
       border-radius: 4px;
       cursor: pointer;
       font-weight: bold;
-      margin-top: 10px;
     }
     #sync-btn:hover { background-color: var(--accent-hover); }
     #sync-btn:disabled { background-color: #777; color: #e0e0e0; cursor: default; }
@@ -201,6 +200,30 @@
     }
     .theme-btn svg { width: 11px; height: 11px; }
     .theme-btn.active { border-color: var(--accent); }
+
+    .sync-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .mirror-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 12px;
+      color: var(--text);
+      cursor: pointer;
+      user-select: none;
+    }
+    .mirror-toggle input {
+      margin: 0;
+    }
+    .mirror-warning {
+      color: #ffcb00;
+      font-weight: 700;
+      margin-left: 2px;
+    }
 
     /* Ko-fi button (image-based) */
     .kofi-button {
@@ -245,7 +268,13 @@
   <div id="selector-container"></div>
   <div id="group-list">Loading...</div>
 
-  <button id="sync-btn">Sync Selected Tabs</button>
+  <div class="sync-row">
+    <button id="sync-btn">Sync Selected Tabs</button>
+    <label class="mirror-toggle" title="Warning - Will mirror/replace the tabs in tab groups with remote device">
+      <input type="checkbox" id="mirror-checkbox">
+      <span>Mirror</span><span class="mirror-warning">!</span>
+    </label>
+  </div>
 
   <div class="footer">
     <!-- Ko-fi donate button (image-based, MV3-friendly) aligned left -->

@@ -156,7 +156,8 @@ async function saveStateToCloud() {
 
 // --- SECTION 3: CORE LOGIC (SYNC) ---
 
-async function syncGroupsFromRemote(groupsToSync) {
+async function syncGroupsFromRemote(groupsToSync, options = {}) {
+  const { mirror = false } = options;
   console.log(`[Sync] Starting sync for ${groupsToSync.length} groups...`);
 
   // Optimization: Fetch all local groups once and map them by title
@@ -172,6 +173,10 @@ async function syncGroupsFromRemote(groupsToSync) {
   }
 
   for (const remoteGroup of groupsToSync) {
+    const normalizedRemoteTabs = (remoteGroup.tabs || [])
+      .map(t => normalizeUrl(typeof t === 'string' ? t : t.url))
+      .filter(u => u !== null);
+    const remoteTabSet = new Set(normalizedRemoteTabs);
     // O(1) Lookup
     const localGroups = localGroupsByTitle.get(remoteGroup.title) || [];
     let targetGroupId;
@@ -184,24 +189,16 @@ async function syncGroupsFromRemote(groupsToSync) {
       console.log(`[Sync] Merging into existing group: "${remoteGroup.title}"`);
     } else {
       // Group doesn't exist, create a new one.
-      if (!remoteGroup.tabs || remoteGroup.tabs.length === 0) {
+      if (normalizedRemoteTabs.length === 0) {
         console.log(`[Sync] Skipping empty remote group: "${remoteGroup.title}"`);
         continue; // Don't create empty groups.
-      }
-
-      // Find the first valid URL to anchor the group
-      const firstValidUrlIndex = remoteGroup.tabs.findIndex(url => normalizeUrl(url));
-
-      if (firstValidUrlIndex === -1) {
-        console.log(`[Sync] Skipping group "${remoteGroup.title}" (no valid URLs).`);
-        continue;
       }
 
       console.log(`[Sync] Creating new group: "${remoteGroup.title}"`);
 
       // Create the first tab to anchor the new group.
       // Security: Use normalized URL
-      const firstTabUrl = normalizeUrl(remoteGroup.tabs[firstValidUrlIndex]);
+      const firstTabUrl = normalizedRemoteTabs[0];
       const firstTab = await browser.tabs.create({ url: firstTabUrl, active: false });
       targetGroupId = await browser.tabs.group({ tabIds: [firstTab.id] });
       targetGroupWindowId = firstTab.windowId;
@@ -216,8 +213,7 @@ async function syncGroupsFromRemote(groupsToSync) {
       });
     }
 
-    // --- Merge Tabs ---
-    // Get all tabs currently in the target group.
+    // --- Merge/Mirror Tabs ---
     const existingTabs = await browser.tabs.query({ groupId: targetGroupId });
     const existingUrls = new Set();
     existingTabs.forEach(t => {
@@ -225,34 +221,74 @@ async function syncGroupsFromRemote(groupsToSync) {
       if (n) existingUrls.add(n);
     });
 
-    // Find which remote tabs are missing locally.
-    const tabsToCreate = [];
-    for (const remoteUrl of remoteGroup.tabs) {
-      const normalizedRemote = normalizeUrl(remoteUrl);
-      // Security Check: normalizedRemote is null if protocol is not http/https (e.g. file://, javascript:).
-      // This prevents syncing malicious URLs.
-      if (normalizedRemote && !existingUrls.has(normalizedRemote)) {
-        // Security: Use the normalized URL to ensure we create exactly what we validated
-        tabsToCreate.push(normalizedRemote);
+    if (mirror) {
+      if (normalizedRemoteTabs.length === 0) {
+        if (existingTabs.length > 0) {
+          await browser.tabs.remove(existingTabs.map(t => t.id));
+        }
+        continue;
       }
-    }
 
-    if (tabsToCreate.length > 0) {
-      console.log(`[Sync] Adding ${tabsToCreate.length} new tabs to group "${remoteGroup.title}".`);
+      // Map local tabs by their normalized URL to handle duplicates correctly
+      const localTabsByUrl = new Map();
+      existingTabs.forEach(t => {
+        const n = normalizeUrl(t.url);
+        if (n) {
+          if (!localTabsByUrl.has(n)) localTabsByUrl.set(n, []);
+          localTabsByUrl.get(n).push(t);
+        }
+      });
 
-      // Create all missing tabs.
-      const newTabPromises = tabsToCreate.map(url => browser.tabs.create({
-        url: url,
-        active: false,
-        windowId: targetGroupWindowId // Ensure tabs are created in the correct window.
-      }));
-      const newTabs = await Promise.all(newTabPromises);
-      const newTabIds = newTabs.map(t => t.id);
+      const tabsToCreate = [];
+      const tabsToKeepIds = new Set();
 
-      // Add all newly created tabs to the group in one go.
-      await browser.tabs.group({ groupId: targetGroupId, tabIds: newTabIds });
+      // For each remote URL, try to find a matching local tab to keep
+      for (const url of normalizedRemoteTabs) {
+        const availableTabs = localTabsByUrl.get(url);
+        if (availableTabs && availableTabs.length > 0) {
+          const tab = availableTabs.shift();
+          tabsToKeepIds.add(tab.id);
+        } else {
+          // No local tab matches this instance of the URL, so we must create it
+          tabsToCreate.push(url);
+        }
+      }
+
+      // Any local tab not matched is extra and should be removed
+      const tabsToRemoveIds = existingTabs
+        .filter(t => !tabsToKeepIds.has(t.id))
+        .map(t => t.id);
+
+      if (tabsToCreate.length > 0) {
+        const newTabs = await Promise.all(tabsToCreate.map(url => browser.tabs.create({
+          url,
+          active: false,
+          windowId: targetGroupWindowId
+        })));
+        await browser.tabs.group({ groupId: targetGroupId, tabIds: newTabs.map(t => t.id) });
+      }
+
+      if (tabsToRemoveIds.length > 0) {
+        await browser.tabs.remove(tabsToRemoveIds);
+      }
     } else {
-      console.log(`[Sync] No new tabs to add to group "${remoteGroup.title}".`);
+      const tabsToCreate = normalizedRemoteTabs.filter(url => !existingUrls.has(url));
+
+      if (tabsToCreate.length > 0) {
+        console.log(`[Sync] Adding ${tabsToCreate.length} new tabs to group "${remoteGroup.title}".`);
+
+        const newTabPromises = tabsToCreate.map(url => browser.tabs.create({
+          url: url,
+          active: false,
+          windowId: targetGroupWindowId // Ensure tabs are created in the correct window.
+        }));
+        const newTabs = await Promise.all(newTabPromises);
+        const newTabIds = newTabs.map(t => t.id);
+
+        await browser.tabs.group({ groupId: targetGroupId, tabIds: newTabIds });
+      } else {
+        console.log(`[Sync] No new tabs to add to group "${remoteGroup.title}".`);
+      }
     }
   }
   console.log("[Sync] Sync process complete.");
@@ -290,7 +326,7 @@ if (browser.tabGroups) {
 // Listen for messages from the popup.
 browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === "syncGroups" && message.groups) {
-    syncGroupsFromRemote(message.groups)
+    syncGroupsFromRemote(message.groups, { mirror: !!message.mirror })
       .then(() => sendResponse({ status: "success" }))
       .catch((err) => {
         console.error("Sync failed:", err);

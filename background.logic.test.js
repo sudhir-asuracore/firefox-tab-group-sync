@@ -31,6 +31,11 @@ describe('background.logic', () => {
     if (!global.browser.tabs.group) {
       global.browser.tabs.group = jest.fn();
     }
+    if (!global.browser.windows) {
+      global.browser.windows = {
+        getLastFocused: jest.fn(() => Promise.resolve({ id: 1 })),
+      };
+    }
   });
 
   describe('getDeviceInfo', () => {
@@ -124,6 +129,54 @@ describe('background.logic', () => {
       expect(browser.tabs.create).toHaveBeenCalledWith({ url: 'https://example.com/new', active: false });
       expect(browser.tabs.group).toHaveBeenCalledWith({ tabIds: 123 });
       expect(browser.tabGroups.update).toHaveBeenCalledWith(1, { title: 'Group 1', color: 'blue' });
+    });
+
+    it('should exactly mirror remote tabs and close extra local tabs', async () => {
+      const snapshotKey = 'state_remote_id';
+      const selectedGroups = ['Work'];
+      browser.storage.sync.get.mockResolvedValue({
+        [snapshotKey]: {
+          groups: [
+            { title: 'Work', color: 'blue', tabs: ['https://a.com', 'https://b.com'] },
+          ],
+        },
+      });
+      browser.tabGroups.query.mockResolvedValue([
+        { id: 1, title: 'Work', color: 'blue', windowId: 1 }
+      ]);
+      browser.tabs.query.mockResolvedValue([
+        { id: 101, url: 'https://a.com', groupId: 1, windowId: 1 },
+        { id: 102, url: 'https://c.com', groupId: 1, windowId: 1 },
+      ]);
+      browser.tabs.create.mockResolvedValue({ id: 201 });
+
+      await restoreFromCloud(snapshotKey, selectedGroups, { mirror: true });
+
+      expect(browser.tabs.create).toHaveBeenCalledWith(expect.objectContaining({ url: 'https://b.com' }));
+      expect(browser.tabs.remove).toHaveBeenCalledWith([102]);
+    });
+
+    it('should handle multiple tabs with same URL correctly in mirror mode', async () => {
+      const snapshotKey = 'state_remote_id';
+      const selectedGroups = ['Work'];
+      browser.storage.sync.get.mockResolvedValue({
+        [snapshotKey]: {
+          groups: [
+            { title: 'Work', color: 'blue', tabs: ['https://a.com', 'https://a.com'] },
+          ],
+        },
+      });
+      browser.tabGroups.query.mockResolvedValue([
+        { id: 1, title: 'Work', color: 'blue', windowId: 1 }
+      ]);
+      browser.tabs.query.mockResolvedValue([
+        { id: 101, url: 'https://a.com', groupId: 1, windowId: 1 },
+      ]);
+      browser.tabs.create.mockResolvedValue({ id: 201 });
+
+      await restoreFromCloud(snapshotKey, selectedGroups, { mirror: true });
+
+      expect(browser.tabs.create).toHaveBeenCalledWith(expect.objectContaining({ url: 'https://a.com' }));
     });
   });
 });

@@ -64,7 +64,7 @@ describe('createGroupCard', () => {
   test('should create a synced group card', () => {
     const card = createGroupCard(remoteGroup, localGroups, localTabs);
     expect(card.classList.contains('synced')).toBe(true);
-    expect(card.querySelector('.sync-checkbox')).toBe(null);
+    expect(card.querySelector('.sync-checkbox')).not.toBe(null);
   });
 
   test('should create an unsynced group card', () => {
@@ -87,7 +87,7 @@ describe('createGroupCard', () => {
   test('should detect synced state when remote tabs are strings', () => {
     const card = createGroupCard(remoteGroupStrings, localGroups, localTabs);
     expect(card.classList.contains('synced')).toBe(true);
-    expect(card.querySelector('.sync-checkbox')).toBe(null);
+    expect(card.querySelector('.sync-checkbox')).not.toBe(null);
   });
 
   test('should detect unsynced state when remote tabs are strings', () => {

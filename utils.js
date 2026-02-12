@@ -69,30 +69,26 @@ export function createGroupCard(remoteGroup, localGroups, localTabs) {
   groupCheckbox.className = 'sync-checkbox';
   groupCheckbox.dataset.groupTitle = remoteGroup.title;
 
+  card.classList.toggle('synced', isSynced);
   if (isSynced) {
-    card.classList.add('synced');
     card.title = 'This group is already synced.';
-    colorDot.style.marginLeft = '20px';
-  } else {
-    groupInfo.insertBefore(groupCheckbox, colorDot);
   }
+  groupInfo.insertBefore(groupCheckbox, colorDot);
 
   const tabCount = document.createElement('span');
   tabCount.className = 'tab-count';
 
-  if (!isSynced) {
-    const toggleBtn = document.createElement('button');
-    toggleBtn.className = 'group-toggle';
-    toggleBtn.type = 'button';
-    toggleBtn.setAttribute('aria-expanded', 'false');
-    toggleBtn.setAttribute('aria-label', 'Toggle tabs');
-    toggleBtn.innerHTML = '<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M4 2l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>';
-    toggleBtn.addEventListener('click', () => {
-      const expanded = card.classList.toggle('expanded');
-      toggleBtn.setAttribute('aria-expanded', expanded ? 'true' : 'false');
-    });
-    groupLeft.appendChild(toggleBtn);
-  }
+  const toggleBtn = document.createElement('button');
+  toggleBtn.className = 'group-toggle';
+  toggleBtn.type = 'button';
+  toggleBtn.setAttribute('aria-expanded', 'false');
+  toggleBtn.setAttribute('aria-label', 'Toggle tabs');
+  toggleBtn.innerHTML = '<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M4 2l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>';
+  toggleBtn.addEventListener('click', () => {
+    const expanded = card.classList.toggle('expanded');
+    toggleBtn.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+  });
+  groupLeft.appendChild(toggleBtn);
   groupLeft.appendChild(groupInfo);
   groupHeader.appendChild(groupLeft);
   groupHeader.appendChild(tabCount);
@@ -114,22 +110,20 @@ export function createGroupCard(remoteGroup, localGroups, localTabs) {
       item.classList.add('synced');
     }
 
-    if (!isSynced) {
-      if (isTabSynced) {
-        const indicator = document.createElement('span');
-        indicator.className = 'tab-sync-indicator';
-        indicator.title = 'Already in sync';
-        indicator.textContent = '✓';
-        item.appendChild(indicator);
-      } else {
-        const tabCheckbox = document.createElement('input');
-        tabCheckbox.type = 'checkbox';
-        tabCheckbox.className = 'tab-checkbox';
-        tabCheckbox.dataset.groupTitle = remoteGroup.title;
-        tabCheckbox.dataset.tabUrl = tab.normalized;
-        tabCheckbox.checked = true;
-        item.appendChild(tabCheckbox);
-      }
+    const tabCheckbox = document.createElement('input');
+    tabCheckbox.type = 'checkbox';
+    tabCheckbox.className = 'tab-checkbox';
+    tabCheckbox.dataset.groupTitle = remoteGroup.title;
+    tabCheckbox.dataset.tabUrl = tab.normalized;
+    tabCheckbox.checked = !isTabSynced;
+    item.appendChild(tabCheckbox);
+
+    if (isTabSynced) {
+      const indicator = document.createElement('span');
+      indicator.className = 'tab-sync-indicator';
+      indicator.title = 'Already in sync';
+      indicator.textContent = '✓';
+      item.appendChild(indicator);
     }
 
     const label = document.createElement('span');
@@ -145,15 +139,11 @@ export function createGroupCard(remoteGroup, localGroups, localTabs) {
     tabList.appendChild(item);
   });
 
-  if (!isSynced && remoteTabs.length > 0) {
+  if (remoteTabs.length > 0) {
     card.appendChild(tabList);
   }
 
   const updateSelectionState = () => {
-    if (isSynced) {
-      tabCount.textContent = `${remoteTabs.length} tabs`;
-      return;
-    }
     const tabCheckboxes = Array.from(card.querySelectorAll('.tab-checkbox'));
     const checkedCount = tabCheckboxes.filter(cb => cb.checked).length;
     const totalCount = tabCheckboxes.length;
@@ -162,23 +152,20 @@ export function createGroupCard(remoteGroup, localGroups, localTabs) {
     tabCount.textContent = `${checkedCount}/${totalCount} tabs selected`;
   };
 
-  if (!isSynced) {
-    groupCheckbox.checked = true;
-    groupCheckbox.addEventListener('change', () => {
-      const tabCheckboxes = card.querySelectorAll('.tab-checkbox');
-      tabCheckboxes.forEach(cb => {
-        cb.checked = groupCheckbox.checked;
-      });
-      groupCheckbox.indeterminate = false;
-      updateSelectionState();
+  groupCheckbox.addEventListener('change', () => {
+    const tabCheckboxes = card.querySelectorAll('.tab-checkbox');
+    tabCheckboxes.forEach(cb => {
+      cb.checked = groupCheckbox.checked;
     });
+    groupCheckbox.indeterminate = false;
+    updateSelectionState();
+  });
 
-    card.addEventListener('change', (event) => {
-      if (event.target && event.target.classList.contains('tab-checkbox')) {
-        updateSelectionState();
-      }
-    });
-  }
+  card.addEventListener('change', (event) => {
+    if (event.target && event.target.classList.contains('tab-checkbox')) {
+      updateSelectionState();
+    }
+  });
 
   updateSelectionState();
   return card;
