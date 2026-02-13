@@ -21,6 +21,9 @@
     "tabGroups",
     "storage"
   ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'none'; style-src 'self' 'unsafe-inline'; img-src 'self' https://storage.ko-fi.com"
+  },
   "background": {
     "scripts": [
       "background.js"
