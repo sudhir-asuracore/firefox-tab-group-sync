@@ -27,6 +27,9 @@
     ],
     "type": "module"
   },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'none'; img-src 'self' https://storage.ko-fi.com;"
+  },
   "action": {
     "default_title": "Tab Group Syncer",
     "default_popup": "popup.html",
