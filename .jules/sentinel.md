@@ -12,3 +12,8 @@
 **Vulnerability:** Core business logic is duplicated between `background.js` (production) and `background.logic.js` (testing), creating a risk where security patches are only applied to one.
 **Learning:** `background.js` does not import from `background.logic.js` but reimplements the same functions.
 **Prevention:** Always verify if a logic change needs to be applied to multiple files by searching for similar function names or logic patterns. Ideally, refactor to share code, but for now, double-patching is required.
+
+## 2026-01-22 - [Defense in Depth: Sync Storage]
+**Vulnerability:** Input length limits were enforced on write but not on read. A malicious/compromised client could sync a huge payload, causing DoS or UI issues on other clients.
+**Learning:** Sync storage is shared state and should be treated as untrusted input. Validation must occur on both write (prevention) and read (protection).
+**Prevention:** Re-apply all validations (length limits, protocol checks) when restoring data from sync storage.

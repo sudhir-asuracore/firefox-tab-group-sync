@@ -207,8 +207,11 @@ async function syncGroupsFromRemote(groupsToSync, options = {}) {
       // Security: Validate color to prevent crashes or API errors
       const safeColor = VALID_COLORS.includes(remoteGroup.color) ? remoteGroup.color : 'grey';
 
+      // Security: Truncate title to prevent issues with extremely long strings
+      const safeTitle = (remoteGroup.title || "Untitled").substring(0, MAX_TITLE_LENGTH);
+
       await browser.tabGroups.update(targetGroupId, {
-        title: remoteGroup.title,
+        title: safeTitle,
         color: safeColor
       });
     }
