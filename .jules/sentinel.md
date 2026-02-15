@@ -12,3 +12,8 @@
 **Vulnerability:** Core business logic is duplicated between `background.js` (production) and `background.logic.js` (testing), creating a risk where security patches are only applied to one.
 **Learning:** `background.js` does not import from `background.logic.js` but reimplements the same functions.
 **Prevention:** Always verify if a logic change needs to be applied to multiple files by searching for similar function names or logic patterns. Ideally, refactor to share code, but for now, double-patching is required.
+
+## 2026-01-24 - [Unsanitized Sync Restoration]
+**Vulnerability:** Titles from sync storage were used directly without checking `MAX_TITLE_LENGTH` during restore, allowing malicious/corrupted storage to cause DoS or UI issues.
+**Learning:** `saveStateToCloud` sanitization is insufficient because storage is shared and mutable by other potentially compromised clients.
+**Prevention:** Always re-sanitize (truncate, validate) data read from "trusted" storage before applying it to the local state.

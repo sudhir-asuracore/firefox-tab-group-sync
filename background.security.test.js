@@ -1,5 +1,6 @@
 import { jest } from '@jest/globals';
 import { restoreFromCloud, saveStateToCloud } from './background.logic.js';
+import { MAX_TITLE_LENGTH } from './utils.js';
 
 // NOT mocking ./utils.js to test real integration
 
@@ -135,6 +136,33 @@ describe('Security: restoreFromCloud', () => {
     );
     expect(browser.tabs.create).not.toHaveBeenCalledWith(
         expect.objectContaining({ url: messyUrl })
+    );
+  });
+
+  it('should truncate group titles from storage to prevent DoS', async () => {
+    const snapshotKey = 'state_DoS_id';
+    const longTitle = 'A'.repeat(MAX_TITLE_LENGTH + 50);
+    const expectedTitle = 'A'.repeat(MAX_TITLE_LENGTH);
+    const selectedGroups = [longTitle];
+
+    browser.storage.sync.get.mockResolvedValue({
+      [snapshotKey]: {
+        groups: [
+          { title: longTitle, color: 'blue', tabs: ['https://example.com'] },
+        ],
+      },
+    });
+    browser.tabGroups.query.mockResolvedValue([]);
+    browser.tabs.create.mockResolvedValue({ id: 123, windowId: 1 });
+    browser.tabs.group.mockResolvedValue(1);
+    browser.tabGroups.update.mockResolvedValue({});
+    browser.tabs.query.mockResolvedValue([]);
+
+    await restoreFromCloud(snapshotKey, selectedGroups);
+
+    expect(browser.tabGroups.update).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ title: expectedTitle })
     );
   });
 });
