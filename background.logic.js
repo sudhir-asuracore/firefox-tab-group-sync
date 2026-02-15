@@ -120,8 +120,11 @@ export async function restoreFromCloud(snapshotKey, selectedGroups, options = {}
       // Security: Validate color
       const safeColor = VALID_COLORS.includes(remoteGroup.color) ? remoteGroup.color : 'grey';
 
+      // Security enhancement: Truncate title to prevent DoS/UI issues
+      const safeTitle = String(remoteGroup.title || "Untitled Group").substring(0, MAX_TITLE_LENGTH);
+
       await browser.tabGroups.update(targetGroupId, { 
-        title: remoteGroup.title, 
+        title: safeTitle,
         color: safeColor
       });
     }
