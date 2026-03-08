@@ -12,3 +12,8 @@
 **Vulnerability:** Core business logic is duplicated between `background.js` (production) and `background.logic.js` (testing), creating a risk where security patches are only applied to one.
 **Learning:** `background.js` does not import from `background.logic.js` but reimplements the same functions.
 **Prevention:** Always verify if a logic change needs to be applied to multiple files by searching for similar function names or logic patterns. Ideally, refactor to share code, but for now, double-patching is required.
+
+## 2026-01-22 - [Untrusted Sync Storage]
+**Vulnerability:** Data restored from sync storage (e.g., group titles) was assumed to be safe because it was sanitized on save, but it can be tampered with or come from compromised clients.
+**Learning:** Sync storage is an untrusted boundary. Any data read from `browser.storage.sync` must be re-sanitized before use in privileged APIs or UI.
+**Prevention:** Apply sanitization (truncation, type checking) immediately upon reading data from storage, before passing it to business logic.
