@@ -1,4 +1,4 @@
-import { normalizeUrl, VALID_COLORS, MAX_TITLE_LENGTH } from './utils.js';
+import { normalizeUrl, VALID_COLORS, MAX_TITLE_LENGTH, compressData, decompressData } from './utils.js';
 
 export async function getDeviceInfo() {
   let info = await browser.storage.local.get(["device_id", "device_name"]);
@@ -14,7 +14,7 @@ export async function getDeviceInfo() {
 export async function saveStateToCloud() {
   try {
     const deviceInfo = await getDeviceInfo();
-    
+
     if (!browser.tabGroups) {
       console.warn("Tab Groups API is not enabled. Please check about:config.");
       return;
@@ -36,7 +36,7 @@ export async function saveStateToCloud() {
 
     for (const group of groups) {
       const tabs = tabsByGroup[group.id] || [];
-      
+
       // Filter out invalid URLs (e.g., about:, chrome:, file:)
       const validTabs = tabs.filter(t => normalizeUrl(t.url));
 
@@ -56,34 +56,88 @@ export async function saveStateToCloud() {
     // Security enhancement: Truncate device name to 32 chars to prevent storage bloat
     const safeDeviceName = deviceInfo.device_name ? deviceInfo.device_name.substring(0, 32) : null;
 
-    await browser.storage.sync.set({
-      [key]: {
-        timestamp: Date.now(),
-        deviceName: safeDeviceName,
-        groups: payload
-      }
-    });
+    const snapshot = {
+      timestamp: Date.now(),
+      deviceName: safeDeviceName,
+      groups: payload
+    };
 
-    console.log(`[Auto-Save] Synced ${payload.length} groups to cloud.`);
+    const json = JSON.stringify(snapshot);
+    const CHUNK_SIZE = 8000; // Leave room for overhead
+
+    if (json.length < CHUNK_SIZE) {
+      // Transition Phase: For small snapshots, use the most compatible (V1) format.
+      // This allows older versions of the extension on other devices to still read this data.
+      await browser.storage.sync.set({ [key]: snapshot });
+
+      // Cleanup any legacy chunks from this device
+      const allData = await browser.storage.sync.get(null);
+      const keysToRemove = Object.keys(allData).filter(k => k.startsWith(`${key}_chunk_`));
+      if (keysToRemove.length > 0) {
+        await browser.storage.sync.remove(keysToRemove);
+      }
+      console.log(`[Auto-Save] Synced ${payload.length} groups using compatible V1 format.`);
+      return payload.length;
+    }
+
+    const compressed = await compressData(snapshot);
+
+    const metaKeyData = {
+      timestamp: snapshot.timestamp,
+      deviceName: safeDeviceName,
+      isCompressed: true
+    };
+
+    if (compressed.length < CHUNK_SIZE) {
+      // Single item storage
+      metaKeyData.data = compressed;
+      await browser.storage.sync.set({ [key]: metaKeyData });
+
+      // Cleanup any legacy chunks from this device
+      const allData = await browser.storage.sync.get(null);
+      const keysToRemove = Object.keys(allData).filter(k => k.startsWith(`${key}_chunk_`));
+      if (keysToRemove.length > 0) {
+        await browser.storage.sync.remove(keysToRemove);
+      }
+    } else {
+      // Chunked storage
+      const chunks = [];
+      for (let i = 0; i < compressed.length; i += CHUNK_SIZE) {
+        chunks.push(compressed.substring(i, i + CHUNK_SIZE));
+      }
+
+      metaKeyData.chunkCount = chunks.length;
+
+      const storagePayload = { [key]: metaKeyData };
+      chunks.forEach((chunk, i) => {
+        storagePayload[`${key}_chunk_${i}`] = chunk;
+      });
+
+      await browser.storage.sync.set(storagePayload);
+
+      // Cleanup extra chunks from previous larger saves
+      const allData = await browser.storage.sync.get(null);
+      const extraKeys = Object.keys(allData).filter(k =>
+        k.startsWith(`${key}_chunk_`) &&
+        parseInt(k.split('_chunk_')[1]) >= chunks.length
+      );
+      if (extraKeys.length > 0) {
+        await browser.storage.sync.remove(extraKeys);
+      }
+    }
+
+    console.log(`[Auto-Save] Synced ${payload.length} groups to cloud. Compressed size: ${compressed.length} chars.`);
+    return payload.length;
 
   } catch (error) {
     console.error("Save Error:", error);
+    return null;
   }
 }
 
-export async function restoreFromCloud(snapshotKey, selectedGroups, options = {}) {
+export async function syncGroupsFromRemote(groupsToSync, options = {}) {
   const { mirror = false } = options;
-  console.log("[Sync] Starting restore process for selected groups...");
-  
-  const allData = await browser.storage.sync.get(snapshotKey);
-  const snapshot = allData[snapshotKey];
-
-  if (!snapshot) {
-    throw new Error(`Snapshot key "${snapshotKey}" not found.`);
-  }
-
-  const groupsToSync = snapshot.groups.filter(g => selectedGroups.includes(g.title));
-  console.log(`[Sync] Found ${groupsToSync.length} selected groups to merge from ${snapshotKey}.`);
+  console.log(`[Sync] Starting sync for ${groupsToSync.length} groups...`);
 
   // Optimization: Fetch all local groups once and map them by title
   const allLocalGroups = await browser.tabGroups.query({});
@@ -101,7 +155,6 @@ export async function restoreFromCloud(snapshotKey, selectedGroups, options = {}
     const normalizedRemoteTabs = (remoteGroup.tabs || [])
       .map(t => normalizeUrl(typeof t === 'string' ? t : t.url))
       .filter(u => u !== null);
-    const remoteTabSet = new Set(normalizedRemoteTabs);
     
     // O(1) Lookup
     const localGroups = localGroupsByTitle.get(remoteGroup.title) || [];
@@ -116,12 +169,12 @@ export async function restoreFromCloud(snapshotKey, selectedGroups, options = {}
       const firstTabUrl = normalizedRemoteTabs[0];
       const firstTab = await browser.tabs.create({ url: firstTabUrl, active: false });
       targetGroupId = await browser.tabs.group({ tabIds: firstTab.id });
-      
+
       // Security: Validate color
       const safeColor = VALID_COLORS.includes(remoteGroup.color) ? remoteGroup.color : 'grey';
 
-      await browser.tabGroups.update(targetGroupId, { 
-        title: remoteGroup.title, 
+      await browser.tabGroups.update(targetGroupId, {
+        title: remoteGroup.title,
         color: safeColor
       });
     }
@@ -193,14 +246,55 @@ export async function restoreFromCloud(snapshotKey, selectedGroups, options = {}
         // This prevents syncing malicious URLs.
         if (normalizedRemote && !localUrls.has(normalizedRemote)) {
           console.log(`[Sync] Adding missing tab: ${normalizedRemote}`);
-          
+
           const newTab = await browser.tabs.create({ url: normalizedRemote, active: false });
           await browser.tabs.group({ tabIds: newTab.id, groupId: targetGroupId });
-          
+
           localUrls.add(normalizedRemote);
         }
       }
     }
   }
-  console.log("[Sync] Restore complete.");
+  console.log("[Sync] Sync process complete.");
+}
+
+export async function restoreFromCloud(snapshotKey, selectedGroups, options = {}) {
+  const { mirror = false } = options;
+  console.log("[Sync] Starting restore process for selected groups...");
+
+  const allData = await browser.storage.sync.get(null);
+  let snapshot = allData[snapshotKey];
+
+  if (!snapshot) {
+    throw new Error(`Snapshot key "${snapshotKey}" not found.`);
+  }
+
+  // Handle chunked and/or compressed data
+  if (snapshot.chunkCount) {
+    let reassembled = "";
+    for (let i = 0; i < snapshot.chunkCount; i++) {
+      const chunk = allData[`${snapshotKey}_chunk_${i}`];
+      if (chunk) reassembled += chunk;
+    }
+    try {
+      if (snapshot.isCompressed) {
+        snapshot = await decompressData(reassembled);
+      } else {
+        snapshot = JSON.parse(reassembled);
+      }
+    } catch (e) {
+      throw new Error(`Failed to reassemble/decompress chunked snapshot for "${snapshotKey}": ${e.message}`);
+    }
+  } else if (snapshot.isCompressed) {
+    try {
+      snapshot = await decompressData(snapshot.data);
+    } catch (e) {
+      throw new Error(`Failed to decompress snapshot for "${snapshotKey}": ${e.message}`);
+    }
+  }
+
+  const groupsToSync = snapshot.groups.filter(g => selectedGroups.includes(g.title));
+  console.log(`[Sync] Found ${groupsToSync.length} selected groups to merge from ${snapshotKey}.`);
+  
+  return await syncGroupsFromRemote(groupsToSync, options);
 }

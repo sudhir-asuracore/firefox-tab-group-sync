@@ -1,7 +1,42 @@
 import { jest } from '@jest/globals';
 import { restoreFromCloud, saveStateToCloud } from './background.logic.js';
+import { decompressData } from './utils.js';
 
 // NOT mocking ./utils.js to test real integration
+
+// Polyfill globals for JSDOM
+global.TextEncoder = global.TextEncoder || require('util').TextEncoder;
+global.TextDecoder = global.TextDecoder || require('util').TextDecoder;
+global.CompressionStream = global.CompressionStream || require('stream/web').CompressionStream;
+global.DecompressionStream = global.DecompressionStream || require('stream/web').DecompressionStream;
+global.ReadableStream = global.ReadableStream || require('stream/web').ReadableStream;
+
+if (!global.Response) {
+  global.Response = class Response {
+    constructor(stream) { this.stream = stream; }
+    async arrayBuffer() {
+      const reader = this.stream.getReader();
+      const chunks = [];
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+      }
+      const len = chunks.reduce((acc, c) => acc + c.length, 0);
+      const res = new Uint8Array(len);
+      let offset = 0;
+      for (const chunk of chunks) {
+        res.set(chunk, offset);
+        offset += chunk.length;
+      }
+      return res.buffer;
+    }
+    async text() {
+      const buffer = await this.arrayBuffer();
+      return new TextDecoder().decode(buffer);
+    }
+  };
+}
 
 // Mock crypto.randomUUID if not available
 if (!global.crypto) {
@@ -155,17 +190,19 @@ describe('Security: saveStateToCloud', () => {
   it('should truncate device name to 32 chars to prevent storage bloat', async () => {
     const longName = 'This is a very long device name that exceeds the thirty-two character limit';
     browser.storage.local.get.mockResolvedValue({ device_id: 'test_id', device_name: longName });
-    browser.tabGroups.query.mockResolvedValue([]);
-    browser.tabs.query.mockResolvedValue([]);
+    // Use at least one valid group with a tab to ensure it saves something
+    browser.tabGroups.query.mockResolvedValue([{ id: 1, title: 'Group', color: 'blue' }]);
+    browser.tabs.query.mockResolvedValue([{ url: 'https://example.com', groupId: 1 }]);
 
     await saveStateToCloud();
 
-    expect(browser.storage.sync.set).toHaveBeenCalledWith(
-      expect.objectContaining({
-        state_test_id: expect.objectContaining({
-          deviceName: longName.substring(0, 32)
-        })
-      })
-    );
+    const lastCall = browser.storage.sync.set.mock.calls.slice(-1)[0][0];
+    const snapshot = lastCall.state_test_id;
+    expect(snapshot.deviceName).toBe(longName.substring(0, 32));
+    
+    // For small payloads, we now use the compatible V1 format (uncompressed)
+    expect(snapshot.isCompressed).toBeUndefined();
+    expect(snapshot.groups).toBeDefined();
+    expect(snapshot.groups[0].title).toBe('Group');
   });
 });

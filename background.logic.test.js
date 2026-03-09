@@ -5,7 +5,9 @@ import { getDeviceInfo, saveStateToCloud, restoreFromCloud } from './background.
 jest.mock('./utils.js', () => ({
   normalizeUrl: jest.fn((url) => url.replace(/\/$/, '')),
   VALID_COLORS: ['blue', 'red', 'green', 'orange', 'yellow', 'purple', 'pink', 'cyan', 'grey'],
-  MAX_TITLE_LENGTH: 100
+  MAX_TITLE_LENGTH: 100,
+  compressData: jest.fn(async (obj) => JSON.stringify(obj)),
+  decompressData: jest.fn(async (str) => JSON.parse(str)),
 }));
 
 // Mock crypto.randomUUID if not available
@@ -55,7 +57,7 @@ describe('background.logic', () => {
   });
 
   describe('saveStateToCloud', () => {
-    it('should save the current tab groups to sync storage', async () => {
+    it('should save the current tab groups to sync storage (compatible V1 format)', async () => {
       browser.storage.local.get.mockResolvedValue({ device_id: 'test_id' });
       browser.tabGroups.query.mockResolvedValue([
         { id: 1, title: 'Group 1', color: 'blue' },
@@ -67,18 +69,14 @@ describe('background.logic', () => {
       await saveStateToCloud();
 
       expect(browser.storage.sync.set).toHaveBeenCalledWith({
-        state_test_id: {
+        state_test_id: expect.objectContaining({
           timestamp: expect.any(Number),
           deviceName: null,
-          groups: [
-            {
-              title: 'Group 1',
-              color: 'blue',
-              tabs: ['https://example.com/1'],
-            },
-          ],
-        },
+          groups: [{ title: 'Group 1', color: 'blue', tabs: ['https://example.com/1'] }]
+        }),
       });
+      const lastCall = browser.storage.sync.set.mock.calls[0][0];
+      expect(lastCall.state_test_id.isCompressed).toBeUndefined();
     });
 
     it('should truncate group titles that exceed MAX_TITLE_LENGTH', async () => {
@@ -95,15 +93,27 @@ describe('background.logic', () => {
 
       await saveStateToCloud();
 
-      expect(browser.storage.sync.set).toHaveBeenCalledWith(expect.objectContaining({
-        state_test_id: expect.objectContaining({
-          groups: expect.arrayContaining([
-            expect.objectContaining({
-              title: expectedTitle
-            })
-          ])
-        })
-      }));
+      const lastCall = browser.storage.sync.set.mock.calls.slice(-1)[0][0];
+      expect(lastCall.state_test_id.groups[0].title).toBe(expectedTitle);
+    });
+
+    it('should split payload into chunks when it exceeds 8KB', async () => {
+      browser.storage.local.get.mockResolvedValue({ device_id: 'chunk_test_id' });
+      browser.tabGroups.query.mockResolvedValue([{ id: 1, title: 'Big Group', color: 'blue' }]);
+
+      const largeTabs = [];
+      for (let i = 0; i < 200; i++) {
+        largeTabs.push(`https://example.com/very/long/url/to/exceed/eight/kilobytes/limit/number/${i}`);
+      }
+      browser.tabs.query.mockResolvedValue(largeTabs.map(url => ({ url, groupId: 1 })));
+
+      await saveStateToCloud();
+
+      const calls = browser.storage.sync.set.mock.calls;
+      const lastCall = calls[calls.length - 1][0];
+
+      expect(lastCall.state_chunk_test_id.chunkCount).toBeGreaterThan(1);
+      expect(lastCall.state_chunk_test_id_chunk_0).toBeDefined();
     });
   });
 
@@ -177,6 +187,40 @@ describe('background.logic', () => {
       await restoreFromCloud(snapshotKey, selectedGroups, { mirror: true });
 
       expect(browser.tabs.create).toHaveBeenCalledWith(expect.objectContaining({ url: 'https://a.com' }));
+    });
+
+    it('should restore groups from a chunked snapshot', async () => {
+      const snapshotKey = 'state_chunk_id';
+      const selectedGroups = ['Chunked Group'];
+
+      const fullData = JSON.stringify({
+        timestamp: Date.now(),
+        deviceName: 'Chunked Device',
+        groups: [
+          { title: 'Chunked Group', color: 'blue', tabs: ['https://example.com/chunk'] },
+        ],
+      });
+      const chunks = [fullData.slice(0, 5), fullData.slice(5)];
+
+      browser.storage.sync.get.mockResolvedValue({
+        [snapshotKey]: {
+          timestamp: Date.now(),
+          deviceName: 'Chunked Device',
+          chunkCount: 2
+        },
+        [`${snapshotKey}_chunk_0`]: chunks[0],
+        [`${snapshotKey}_chunk_1`]: chunks[1],
+      });
+
+      browser.tabGroups.query.mockResolvedValue([]);
+      browser.tabs.create.mockResolvedValue({ id: 123 });
+      browser.tabs.group.mockResolvedValue(1);
+      browser.tabGroups.update.mockResolvedValue({});
+      browser.tabs.query.mockResolvedValue([]);
+
+      await restoreFromCloud(snapshotKey, selectedGroups);
+
+      expect(browser.tabs.create).toHaveBeenCalledWith(expect.objectContaining({ url: 'https://example.com/chunk' }));
     });
   });
 });

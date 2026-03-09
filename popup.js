@@ -1,4 +1,4 @@
-import { createGroupCard, normalizeUrl } from './utils.js';
+import { createGroupCard, normalizeUrl, decompressData } from './utils.js';
 
 document.addEventListener('DOMContentLoaded', () => {
   const listContainer = document.getElementById('group-list');
@@ -179,8 +179,34 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const allData = await browser.storage.sync.get(null);
       const remoteKeys = Object.keys(allData).filter(k =>
-        k.startsWith("state_") && k !== `state_${currentDeviceId}`
+        k.startsWith("state_") && !k.includes("_chunk_") && k !== `state_${currentDeviceId}`
       );
+
+      // Reassemble chunked and/or compressed data if necessary
+      for (const key of remoteKeys) {
+        const data = allData[key];
+        if (data && data.chunkCount) {
+          let assembled = "";
+          for (let i = 0; i < data.chunkCount; i++) {
+            assembled += (allData[`${key}_chunk_${i}`] || "");
+          }
+          try {
+            if (data.isCompressed) {
+              allData[key] = await decompressData(assembled);
+            } else {
+              allData[key] = JSON.parse(assembled);
+            }
+          } catch (e) {
+            console.error("Failed to reassemble/decompress chunks for", key, e);
+          }
+        } else if (data && data.isCompressed) {
+          try {
+            allData[key] = await decompressData(data.data);
+          } catch (e) {
+            console.error("Failed to decompress snapshot for", key, e);
+          }
+        }
+      }
 
       listContainer.textContent = '';
       selectorContainer.innerHTML = ''; // Clear previous selector to prevent duplicates

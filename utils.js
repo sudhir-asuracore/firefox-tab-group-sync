@@ -170,3 +170,54 @@ export function createGroupCard(remoteGroup, localGroups, localTabs) {
   updateSelectionState();
   return card;
 }
+
+/**
+ * Compresses an object using Gzip and returns a Base64 string.
+ * @param {Object} obj
+ * @returns {Promise<string>}
+ */
+export async function compressData(obj) {
+  const string = JSON.stringify(obj);
+  const encoder = new TextEncoder();
+  const encoded = encoder.encode(string);
+  const stream = new ReadableStream({
+    start(controller) {
+      controller.enqueue(encoded);
+      controller.close();
+    }
+  }).pipeThrough(new CompressionStream("gzip"));
+
+  const response = new Response(stream);
+  const compressed = await response.arrayBuffer();
+
+  const bytes = new Uint8Array(compressed);
+  let binary = '';
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
+
+/**
+ * Decompresses a Base64 string using Gzip and returns the original object.
+ * @param {string} base64
+ * @returns {Promise<Object>}
+ */
+export async function decompressData(base64) {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+
+  const stream = new ReadableStream({
+    start(controller) {
+      controller.enqueue(bytes);
+      controller.close();
+    }
+  }).pipeThrough(new DecompressionStream("gzip"));
+
+  const response = new Response(stream);
+  const text = await response.text();
+  return JSON.parse(text);
+}
