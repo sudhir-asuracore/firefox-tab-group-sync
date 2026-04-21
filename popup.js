@@ -16,6 +16,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const mirrorCheckbox = document.getElementById('mirror-checkbox');
   const syncRow = document.querySelector('.sync-row');
   const themeButtons = Array.from(document.querySelectorAll('.theme-btn'));
+  const bulkActions = document.getElementById('bulk-actions');
+  const masterCheckbox = document.getElementById('master-checkbox');
 
   // Open GitHub repo in a new tab when the footer link is clicked
   if (sourceLink) {
@@ -60,8 +62,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const updateSyncUIState = () => {
     if (!listContainer) return;
+    const allTabs = listContainer.querySelectorAll('.tab-checkbox');
     const selectedTabs = listContainer.querySelectorAll('.tab-checkbox:checked');
     const hasSelection = selectedTabs.length > 0;
+
+    if (masterCheckbox) {
+      const total = allTabs.length;
+      const selected = selectedTabs.length;
+      masterCheckbox.checked = total > 0 && selected === total;
+      masterCheckbox.indeterminate = selected > 0 && selected < total;
+    }
 
     if (mirrorCheckbox) {
       mirrorCheckbox.disabled = !hasSelection;
@@ -87,6 +97,21 @@ document.addEventListener('DOMContentLoaded', () => {
         await browser.storage.local.set({ theme_pref: pref });
         applyTheme(pref);
       });
+    });
+  }
+
+  if (masterCheckbox) {
+    masterCheckbox.addEventListener('change', () => {
+      const isChecked = masterCheckbox.checked;
+      const groupCheckboxes = listContainer.querySelectorAll('.sync-checkbox');
+      groupCheckboxes.forEach(cb => {
+        if (cb.checked !== isChecked || cb.indeterminate) {
+          cb.checked = isChecked;
+          cb.indeterminate = false;
+          cb.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+      });
+      updateSyncUIState();
     });
   }
 
@@ -217,6 +242,7 @@ document.addEventListener('DOMContentLoaded', () => {
         p.style.color = '#666';
         listContainer.appendChild(p);
         if (syncRow) syncRow.style.display = 'flex';
+        if (bulkActions) bulkActions.style.display = 'none';
         syncBtn.disabled = true;
         syncBtn.textContent = "Nothing to Sync";
         syncBtn.title = "There are no remote snapshots to sync from.";
@@ -249,6 +275,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!snapshot || !snapshot.groups) {
           listContainer.textContent = 'No groups found in this snapshot.';
           if (syncRow) syncRow.style.display = 'none';
+          if (bulkActions) bulkActions.style.display = 'none';
           return;
         }
 
@@ -284,10 +311,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (snapshot.groups.length > 0) {
           if (syncRow) syncRow.style.display = 'flex';
+          if (bulkActions) bulkActions.style.display = 'flex';
           syncBtn.textContent = "Sync Selected Tabs";
           if (!anyUnsynced) {
             setStatusMsg('Already in sync');
           }
+        } else {
+          if (bulkActions) bulkActions.style.display = 'none';
         }
 
         updateSyncUIState();

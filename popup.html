@@ -71,17 +71,44 @@
     .device-meta-right { display: flex; align-items: center; gap: 6px; }
     .device-sync-status { font-size: 10px; color: var(--muted-2); min-height: 12px; }
 
-    h2 { margin-top: 0; font-size: 16px; color: var(--text); }
+    h2 { margin: 0; font-size: 16px; color: var(--text); white-space: nowrap; }
 
-    #selector-container { margin-bottom: 10px; }
+    .snapshots-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+
+    #selector-container { flex-grow: 1; }
     select {
       width: 100%;
       padding: 5px;
       border-radius: 4px;
       border: 1px solid var(--border);
-      margin-bottom: 10px;
       background: var(--panel);
       color: var(--text);
+    }
+
+    .bulk-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 10px;
+      padding: 0 4px;
+    }
+    .bulk-select-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      color: var(--text);
+      cursor: pointer;
+      user-select: none;
+    }
+    #master-checkbox {
+      margin: 0;
+      transform: scale(1.1);
     }
 
     .group-card {
@@ -264,8 +291,18 @@
     </div>
   </div>
 
-  <h2>Remote Snapshots</h2>
-  <div id="selector-container"></div>
+  <div class="snapshots-header">
+    <h2>Remote: </h2>
+    <div id="selector-container"></div>
+  </div>
+
+  <div class="bulk-actions" id="bulk-actions" style="display: none;">
+    <label class="bulk-select-label">
+      <input type="checkbox" id="master-checkbox">
+      <span>Select/Deselect All</span>
+    </label>
+  </div>
+
   <div id="group-list">Loading...</div>
 
   <div class="sync-row">
