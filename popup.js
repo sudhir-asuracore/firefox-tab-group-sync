@@ -60,6 +60,48 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   };
 
+  const showConfirm = (message) => {
+    return new Promise((resolve) => {
+      const modal = document.getElementById('confirm-modal');
+      const msgEl = document.getElementById('confirm-message');
+      const okBtn = document.getElementById('confirm-ok');
+      const cancelBtn = document.getElementById('confirm-cancel');
+
+      if (!modal || !msgEl || !okBtn || !cancelBtn) {
+        resolve(confirm(message));
+        return;
+      }
+
+      msgEl.textContent = message;
+      modal.classList.add('show');
+
+      const cleanup = () => {
+        modal.classList.remove('show');
+        okBtn.onclick = null;
+        cancelBtn.onclick = null;
+        modal.onclick = null;
+      };
+
+      okBtn.onclick = () => {
+        cleanup();
+        resolve(true);
+      };
+
+      cancelBtn.onclick = () => {
+        cleanup();
+        resolve(false);
+      };
+
+      // Also close on background click
+      modal.onclick = (e) => {
+        if (e.target === modal) {
+          cleanup();
+          resolve(false);
+        }
+      };
+    });
+  };
+
   const updateSyncUIState = () => {
     if (!listContainer) return;
     const allTabs = listContainer.querySelectorAll('.tab-checkbox');
@@ -203,12 +245,15 @@ document.addEventListener('DOMContentLoaded', () => {
       deviceLabel.textContent = `ID: ${currentDeviceId}`;
 
       const allData = await browser.storage.sync.get(null);
-      const remoteKeys = Object.keys(allData).filter(k =>
-        k.startsWith("state_") && !k.includes("_chunk_") && k !== `state_${currentDeviceId}`
+      const allSnapshotKeys = Object.keys(allData).filter(k =>
+        k.startsWith("state_") && !k.includes("_chunk_")
       );
+      const remoteKeys = allSnapshotKeys.filter(k => k !== `state_${currentDeviceId}`);
+      const localSnapshotKey = `state_${currentDeviceId}`;
+      const hasLocalSnapshot = allData[localSnapshotKey] !== undefined;
 
       // Reassemble chunked and/or compressed data if necessary
-      for (const key of remoteKeys) {
+      for (const key of allSnapshotKeys) {
         const data = allData[key];
         if (data && data.chunkCount) {
           let assembled = "";
@@ -236,16 +281,16 @@ document.addEventListener('DOMContentLoaded', () => {
       listContainer.textContent = '';
       selectorContainer.innerHTML = ''; // Clear previous selector to prevent duplicates
 
-      if (remoteKeys.length === 0) {
+      if (allSnapshotKeys.length === 0) {
         const p = document.createElement('p');
-        p.textContent = "No remote snapshots found.";
+        p.textContent = "No snapshots found.";
         p.style.color = '#666';
         listContainer.appendChild(p);
         if (syncRow) syncRow.style.display = 'flex';
         if (bulkActions) bulkActions.style.display = 'none';
         syncBtn.disabled = true;
         syncBtn.textContent = "Nothing to Sync";
-        syncBtn.title = "There are no remote snapshots to sync from.";
+        syncBtn.title = "There are no snapshots to sync from.";
         updateSyncUIState();
         return;
       }
@@ -254,18 +299,98 @@ document.addEventListener('DOMContentLoaded', () => {
       const localGroups = new Map(localGroupsList.map(g => [g.title, g]));
       const localTabs = await browser.tabs.query({});
 
-      const selector = document.createElement('select');
-      remoteKeys.sort((a, b) => allData[b].timestamp - allData[a].timestamp).forEach(key => {
-        const option = document.createElement('option');
-        option.value = key;
+      let currentSnapshotKey = localData.last_selected_snapshot_key && allSnapshotKeys.includes(localData.last_selected_snapshot_key)
+        ? localData.last_selected_snapshot_key
+        : allSnapshotKeys.sort((a, b) => (allData[b].timestamp || 0) - (allData[a].timestamp || 0))[0];
+
+      const customSelect = document.createElement('div');
+      customSelect.className = 'custom-select';
+
+      const trigger = document.createElement('div');
+      trigger.className = 'select-trigger';
+      customSelect.appendChild(trigger);
+
+      const optionsContainer = document.createElement('div');
+      optionsContainer.className = 'select-options';
+      customSelect.appendChild(optionsContainer);
+
+      const createOption = (key) => {
+        const option = document.createElement('div');
+        option.className = 'select-option';
+        if (key === currentSnapshotKey) option.classList.add('selected');
+
+        const text = document.createElement('span');
         const snapshot = allData[key];
         const date = new Date(snapshot.timestamp);
         const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-        const displayName = snapshot.deviceName || key.replace('state_', '');
-        option.textContent = `${displayName} - ${dateStr}`;
-        selector.appendChild(option);
+        const isLocal = key === localSnapshotKey;
+        const displayName = (snapshot.deviceName || key.replace('state_', '')) + (isLocal ? ' (This Device)' : '');
+        text.textContent = `${displayName} - ${dateStr}`;
+        option.appendChild(text);
+
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'delete-btn';
+        deleteBtn.innerHTML = '&times;';
+        deleteBtn.title = 'Delete this snapshot';
+        deleteBtn.onclick = async (e) => {
+          e.stopPropagation();
+          if (await showConfirm(`Are you sure you want to delete the snapshot from "${displayName}"?`)) {
+            const mainData = await browser.storage.sync.get(null);
+            const keysToRemove = [key];
+            Object.keys(mainData).forEach(k => {
+              if (k.startsWith(`${key}_chunk_`)) {
+                keysToRemove.push(k);
+              }
+            });
+            await browser.storage.sync.remove(keysToRemove);
+            initializeSyncUI();
+          }
+        };
+        option.appendChild(deleteBtn);
+
+        option.onclick = async () => {
+          currentSnapshotKey = key;
+          await browser.storage.local.set({ last_selected_snapshot_key: key });
+          updateTriggerTextOnKey(key);
+          Array.from(optionsContainer.children).forEach(child => child.classList.remove('selected'));
+          option.classList.add('selected');
+          customSelect.classList.remove('open');
+          renderGroups(key);
+        };
+
+        return option;
+      };
+
+      remoteKeys.sort((a, b) => (allData[b].timestamp || 0) - (allData[a].timestamp || 0)).forEach(key => {
+        optionsContainer.appendChild(createOption(key));
       });
-      selectorContainer.appendChild(selector);
+
+      if (hasLocalSnapshot) {
+        if (remoteKeys.length > 0) {
+          const separator = document.createElement('div');
+          separator.className = 'select-separator';
+          optionsContainer.appendChild(separator);
+        }
+        optionsContainer.appendChild(createOption(localSnapshotKey));
+      }
+
+      const updateTriggerTextOnKey = (key) => {
+        const snapshot = allData[key];
+        const date = new Date(snapshot.timestamp);
+        const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        const isLocal = key === localSnapshotKey;
+        const displayName = (snapshot.deviceName || key.replace('state_', '')) + (isLocal ? ' (This Device)' : '');
+        trigger.textContent = `${displayName} - ${dateStr}`;
+      };
+
+      updateTriggerTextOnKey(currentSnapshotKey);
+
+      trigger.onclick = (e) => {
+        e.stopPropagation();
+        customSelect.classList.toggle('open');
+      };
+
+      selectorContainer.appendChild(customSelect);
 
       const renderGroups = async (snapshotKey) => {
         listContainer.textContent = '';
@@ -323,15 +448,7 @@ document.addEventListener('DOMContentLoaded', () => {
         updateSyncUIState();
       };
 
-      if (localData.last_selected_snapshot_key && remoteKeys.includes(localData.last_selected_snapshot_key)) {
-        selector.value = localData.last_selected_snapshot_key;
-      }
-
-      await renderGroups(selector.value);
-      selector.addEventListener('change', async () => {
-        await browser.storage.local.set({ last_selected_snapshot_key: selector.value });
-        renderGroups(selector.value);
-      });
+      await renderGroups(currentSnapshotKey);
       listContainer.onchange = updateSyncUIState;
 
       // Use onclick to avoid duplicate listeners when initializeSyncUI is called again
@@ -359,7 +476,7 @@ document.addEventListener('DOMContentLoaded', () => {
         setStatusMsg(`Syncing ${selectedTabsByGroup.size} group(s)...`);
 
         try {
-          const snapshotKey = selector.value;
+          const snapshotKey = currentSnapshotKey;
           const remoteSnapshot = allData[snapshotKey];
           const groupsToSync = remoteSnapshot.groups
             .filter(g => selectedTabsByGroup.has(g.title))
@@ -405,4 +522,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
   initializeSyncUI();
   waitForAutoSave();
+
+  // Close custom dropdown when clicking outside
+  document.addEventListener('click', (e) => {
+    const customSelect = document.querySelector('.custom-select');
+    if (customSelect && !customSelect.contains(e.target)) {
+      customSelect.classList.remove('open');
+    }
+  });
 });

@@ -81,13 +81,93 @@
     }
 
     #selector-container { flex-grow: 1; }
-    select {
+    .custom-select {
+      position: relative;
       width: 100%;
-      padding: 5px;
-      border-radius: 4px;
+      user-select: none;
+    }
+    .select-trigger {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 10px;
       border: 1px solid var(--border);
+      border-radius: 4px;
       background: var(--panel);
-      color: var(--text);
+      cursor: pointer;
+      font-size: 13px;
+      min-height: 18px;
+    }
+    .select-trigger:after {
+      content: "";
+      width: 0;
+      height: 0;
+      border-left: 5px solid transparent;
+      border-right: 5px solid transparent;
+      border-top: 5px solid var(--text);
+      margin-left: 10px;
+    }
+    .select-options {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 0 0 4px 4px;
+      border-top: none;
+      z-index: 100;
+      display: none;
+      max-height: 200px;
+      overflow-y: auto;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    .custom-select.open .select-options {
+      display: block;
+    }
+    .custom-select.open .select-trigger {
+      border-radius: 4px 4px 0 0;
+    }
+    .select-option {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 10px;
+      cursor: pointer;
+      font-size: 13px;
+      transition: background 0.2s;
+    }
+    .select-option:hover {
+      background: var(--bg);
+    }
+    .select-option.selected {
+      background: var(--synced-bg);
+      font-weight: bold;
+    }
+    .delete-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      color: var(--muted-2);
+      border: none;
+      background: transparent;
+      cursor: pointer;
+      font-size: 14px;
+      margin-left: 8px;
+      flex-shrink: 0;
+    }
+    .delete-btn:hover {
+      background: rgba(255, 0, 0, 0.1);
+      color: #ff4d4d;
+    }
+
+    .select-separator {
+      height: 1px;
+      background-color: var(--border);
+      margin: 4px 0;
     }
 
     .bulk-actions {
@@ -258,6 +338,92 @@
       text-decoration: none;
       line-height: 0; /* remove extra gap around image */
     }
+    
+    /* Custom Modal */
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 1000;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0,0,0,0.6);
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      box-sizing: border-box;
+    }
+    .modal.show {
+      display: flex;
+    }
+    .modal-content {
+      background-color: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      width: 100%;
+      max-width: 300px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+      animation: modalFadeIn 0.2s ease-out;
+    }
+    @keyframes modalFadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .modal-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+    .modal-icon {
+      width: 18px;
+      height: 18px;
+      color: var(--text);
+      opacity: 0.9;
+    }
+    .modal-title {
+      font-weight: 700;
+      font-size: 15px;
+      color: var(--text);
+    }
+    .modal-body {
+      font-size: 14px;
+      line-height: 1.5;
+      margin: 0 0 24px 0;
+      color: var(--text);
+      opacity: 0.9;
+    }
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+    .modal-btn {
+      padding: 8px 20px;
+      border-radius: 6px;
+      font-size: 14px;
+      cursor: pointer;
+      border: none;
+      font-weight: 600;
+      transition: all 0.2s;
+    }
+    .modal-btn.primary {
+      background-color: var(--accent);
+      color: white;
+    }
+    .modal-btn.primary:hover {
+      background-color: var(--accent-hover);
+    }
+    .modal-btn.secondary {
+      background-color: var(--bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .modal-btn.secondary:hover {
+      background-color: var(--border);
+    }
 
   </style>
 </head>
@@ -292,7 +458,7 @@
   </div>
 
   <div class="snapshots-header">
-    <h2>Remote: </h2>
+    <h2>Devices: </h2>
     <div id="selector-container"></div>
   </div>
 
@@ -307,7 +473,7 @@
 
   <div class="sync-row">
     <button id="sync-btn">Sync Selected Tabs</button>
-    <label class="mirror-toggle" title="Warning - Will mirror/replace the tabs in tab groups with remote device">
+    <label class="mirror-toggle" title="Warning - Will mirror/replace the tabs in tab groups with the selected device">
       <input type="checkbox" id="mirror-checkbox">
       <span>Mirror</span><span class="mirror-warning">!</span>
     </label>
@@ -322,6 +488,24 @@
     <div class="right">
       <a id="source-link" href="https://github.com/sudhir-asuracore/firefox-tab-group-sync" target="_blank" rel="noopener noreferrer">Source/Report Issue</a>
       <div id="version-label"></div>
+    </div>
+  </div>
+
+  <div id="confirm-modal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <svg class="modal-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="2" y1="12" x2="22" y2="12"></line>
+          <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+        </svg>
+        <span class="modal-title">Tab Group Syncer</span>
+      </div>
+      <p id="confirm-message" class="modal-body"></p>
+      <div class="modal-actions">
+        <button id="confirm-cancel" class="modal-btn secondary">Cancel</button>
+        <button id="confirm-ok" class="modal-btn primary">OK</button>
+      </div>
     </div>
   </div>
 
