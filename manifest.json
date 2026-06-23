@@ -16,6 +16,9 @@
       "strict_min_version": "120.0"
     }
   },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' https://storage.ko-fi.com; object-src 'none';"
+  },
   "permissions": [
     "tabs",
     "tabGroups",
