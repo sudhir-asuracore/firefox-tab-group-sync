@@ -12,3 +12,8 @@
 **Vulnerability:** Core business logic is duplicated between `background.js` (production) and `background.logic.js` (testing), creating a risk where security patches are only applied to one.
 **Learning:** `background.js` does not import from `background.logic.js` but reimplements the same functions.
 **Prevention:** Always verify if a logic change needs to be applied to multiple files by searching for similar function names or logic patterns. Ideally, refactor to share code, but for now, double-patching is required.
+
+## 2026-01-22 - [Manifest V3 CSP Defense]
+**Vulnerability:** Missing Content Security Policy (CSP) in `manifest.json` leaves the extension vulnerable to potential XSS attacks and unauthorized resource loading.
+**Learning:** Manifest V3 extensions should explicitly define a strict CSP. External resources (like images from CDNs) must be explicitly allowed.
+**Prevention:** Define `content_security_policy` with `script-src 'self'`, `object-src 'none'`, and specific allowlists for `img-src` or `style-src` only when necessary.
